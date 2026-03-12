@@ -1,7 +1,6 @@
 {
-  "name": "@workspace/api-server",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@seanfenlon/abovo-mcp-server",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development tsx ./src/index.ts",
