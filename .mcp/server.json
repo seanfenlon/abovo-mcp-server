@@ -14,22 +14,5 @@
       "type": "streamable-http",
       "url": "https://abovo.replit.app/mcp"
     }
-  ],
-  "packages": [
-    {
-      "registryType": "npm",
-      "identifier": "@seanfenlon/abovo-mcp-server",
-      "version": "1.0.0",
-      "transport": {
-        "type": "stdio"
-      },
-      "environmentVariables": [
-        {"name": "ABOVO_SMTP_HOST", "description": "SMTP server hostname", "isRequired": false, "format": "string", "isSecret": false},
-        {"name": "ABOVO_SMTP_PORT", "description": "SMTP port", "isRequired": false, "format": "string", "isSecret": false},
-        {"name": "ABOVO_SMTP_USER", "description": "SMTP username/email", "isRequired": true, "format": "string", "isSecret": false},
-        {"name": "ABOVO_SMTP_PASS", "description": "SMTP password or app password", "isRequired": true, "format": "string", "isSecret": true},
-        {"name": "ABOVO_SENDER_EMAIL", "description": "Sender email address", "isRequired": false, "format": "string", "isSecret": false}
-      ]
-    }
   ]
 }
