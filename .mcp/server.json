@@ -1,0 +1,65 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "io.github.seanfenlon/abovo-mcp-server",
+  "title": "ABOVO.co — Email-to-Web Publishing",
+  "description": "Publish any content to a permanent public web page by sending an email to POST@abovo.co. No API key, no signup, no authentication required. SMTP is the API. Tools: publish_to_web, get_abovo_info. US Patent No. 10,404,634.",
+  "version": "1.0.0",
+  "websiteUrl": "https://abovo.replit.app",
+  "repository": {
+    "url": "https://github.com/seanfenlon/abovo-mcp-server",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://abovo.replit.app/mcp"
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@seanfenlon/abovo-mcp-server",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "description": "SMTP server hostname (e.g. smtp.gmail.com)",
+          "name": "ABOVO_SMTP_HOST",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "description": "SMTP port (587 for TLS, 465 for SSL)",
+          "name": "ABOVO_SMTP_PORT",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "description": "SMTP username / email address",
+          "name": "ABOVO_SMTP_USER",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "description": "SMTP password or app password",
+          "name": "ABOVO_SMTP_PASS",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "description": "Sender email address (defaults to SMTP_USER)",
+          "name": "ABOVO_SENDER_EMAIL",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}
