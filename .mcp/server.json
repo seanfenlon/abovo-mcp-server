@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
   "name": "io.github.seanfenlon/abovo-mcp-server",
   "title": "ABOVO.co — Email-to-Web Publishing",
-  "description": "Publish any content to a permanent public web page by sending an email to POST@abovo.co. No API key, no signup, no authentication required. SMTP is the API. Tools: publish_to_web, get_abovo_info. US Patent No. 10,404,634.",
+  "description": "Publish content to the web by emailing POST@abovo.co. No API key, no signup. SMTP is the API.",
   "version": "1.0.0",
   "websiteUrl": "https://abovo.replit.app",
   "repository": {
