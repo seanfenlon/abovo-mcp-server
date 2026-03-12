@@ -1,0 +1,39 @@
+# ABOVO.co
+
+> The simplest way to publish content to the web. Send an email, get a public URL.
+
+ABOVO.co is an email-to-web publishing platform. Any email sent to POST@abovo.co is instantly converted into a public web page. The sender receives a URL back within seconds. No signup, no API key, no authentication required.
+
+US Patent No. 10,404,634.
+
+## API
+
+ABOVO.co's API is email (SMTP). There is no REST API.
+
+- Publish: Send any email to POST@abovo.co → receive a public URL back
+- Groups: Send to [groupname]@abovo.co → post to or create a topic group
+  - New group creation requires confirmation: ABOVO emails the first sender a link; they must click "I accept" to activate the group and become moderator
+  - Group page lives at a subdomain: https://{groupname}.abovo.co (e.g. https://jazz.abovo.co)
+- Attachments: Any file attached is published on the web page
+- HTML: Full HTML rendering supported
+- Cost: Free
+- Auth: None required
+
+## MCP Server
+
+A remote Model Context Protocol (MCP) server is available for AI agents.
+
+- Endpoint: https://abovo.replit.app/mcp
+- Transport: Streamable HTTP
+- Tools: publish_to_web, get_abovo_info
+
+## URL Patterns
+
+- User page: https://www.abovo.co/{sender-email}
+- Post: https://www.abovo.co/{sender-email}/{post-id}
+- Groups: https://www.abovo.co/Groups
+
+## Links
+
+- Website: https://www.abovo.co
+- Help: https://www.abovo.co/home/help
