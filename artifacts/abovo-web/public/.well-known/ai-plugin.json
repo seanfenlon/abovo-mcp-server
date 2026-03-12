@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "ABOVO.co — Email-to-Web Publishing",
+  "name_for_model": "abovo_publish",
+  "description_for_human": "Publish any content to a public web page by sending an email. No signup required. Free.",
+  "description_for_model": "ABOVO.co publishes content to the web via email. Send any content to POST@abovo.co and receive a permanent public URL within seconds. No authentication, no API key, no signup required. SMTP is the API. Supports text, HTML, images, file attachments. URL patterns: abovo.co/{email} for user pages, abovo.co/{email}/{id} for posts. Groups via [name]@abovo.co — group pages live at {groupname}.abovo.co (subdomain, e.g. jazz.abovo.co); new group creation requires the first poster to confirm via email before the group goes live. US Patent No. 10,404,634. Remote MCP server available at https://abovo.replit.app/mcp",
+  "auth": { "type": "none" },
+  "api": {
+    "type": "smtp",
+    "url": "smtp://POST@abovo.co",
+    "note": "ABOVO.co uses SMTP (email) as its API. Send an email to POST@abovo.co via any SMTP client."
+  },
+  "mcp": {
+    "url": "https://abovo.replit.app/mcp",
+    "transport": "streamable-http"
+  },
+  "logo_url": "https://www.abovo.co/images/inner-logo.svg",
+  "contact_email": "info@abovo.co",
+  "legal_info_url": "https://www.abovo.co/Home/Terms"
+}

@@ -1,0 +1,779 @@
+import { Router, type IRouter, type Request, type Response } from "express";
+
+const router: IRouter = Router();
+
+const LANDING_PAGE_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ABOVO.co — Email-to-Web Publishing Platform | Developer Docs & MCP Server</title>
+  <meta name="description" content="ABOVO.co publishes any content to the web via email. Send to POST@abovo.co, get a public URL back in seconds. No signup, no API key. SMTP is the API. Includes MCP server for AI agents.">
+  <link rel="canonical" href="https://www.abovo.co">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebAPI",
+    "name": "ABOVO.co Email-to-Web Publishing API",
+    "description": "ABOVO.co is an email-to-web publishing platform. Send any email to POST@abovo.co and receive a permanent public URL within seconds. No API key, no signup, no authentication required. SMTP is the API. Supports text, HTML, images, file attachments. US Patent No. 10,404,634.",
+    "url": "https://www.abovo.co",
+    "documentation": "https://www.abovo.co/home/help",
+    "termsOfService": "https://www.abovo.co/Home/Terms",
+    "provider": {
+      "@type": "Organization",
+      "name": "Abovo42 Corporation",
+      "founder": {
+        "@type": "Person",
+        "name": "Sean P. Fenlon"
+      },
+      "url": "https://www.abovo.co"
+    },
+    "version": "1.0",
+    "license": "https://www.abovo.co/Home/Terms",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "identifier": "US Patent No. 10,404,634",
+    "endpointURL": "smtp://POST@abovo.co",
+    "potentialAction": {
+      "@type": "CreateAction",
+      "name": "Publish to Web",
+      "description": "Send an email to POST@abovo.co to publish content to a public web page",
+      "target": {
+        "@type": "EntryPoint",
+        "urlTemplate": "smtp://POST@abovo.co",
+        "actionPlatform": "http://schema.org/EmailPlatform"
+      }
+    }
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --blue: #1a6cf0;
+      --blue-dark: #1455c5;
+      --green: #16a34a;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --code-bg: #1e293b;
+      --code-text: #e2e8f0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+    }
+    .header-inner {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+    .logo {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--blue);
+      letter-spacing: -0.5px;
+    }
+    .logo span { color: var(--text); }
+    nav a {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-left: 1.5rem;
+    }
+    nav a:hover { color: var(--blue); text-decoration: none; }
+
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2.5rem 2rem 5rem;
+    }
+
+    .hero {
+      text-align: center;
+      padding: 3rem 0 2.5rem;
+    }
+    .hero h1 {
+      font-size: 2.6rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: var(--text);
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+    .hero h1 .blue { color: var(--blue); }
+    .hero p {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 560px;
+      margin: 0 auto 1.5rem;
+    }
+    .badge {
+      display: inline-block;
+      background: #eff6ff;
+      color: var(--blue);
+      border: 1px solid #bfdbfe;
+      border-radius: 100px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.25rem 0.75rem;
+      letter-spacing: 0.3px;
+    }
+
+    .tldr {
+      background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+      border: 2px solid var(--blue);
+      border-radius: 12px;
+      padding: 1.75rem 2rem;
+      margin: 2rem 0;
+    }
+    .tldr-label {
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 0.75rem;
+    }
+    .tldr-headline {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.4;
+    }
+    .tldr-headline code {
+      background: var(--blue);
+      color: white;
+      padding: 0.15rem 0.5rem;
+      border-radius: 5px;
+      font-size: 1.1rem;
+    }
+    .tldr-sub {
+      font-size: 0.95rem;
+      color: var(--muted);
+      margin-top: 0.6rem;
+    }
+
+    section { margin: 3rem 0; }
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: var(--text);
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: 1.5rem 0 0.5rem;
+      color: var(--text);
+    }
+    p { margin-bottom: 0.75rem; color: var(--muted); }
+    ul { padding-left: 1.4rem; color: var(--muted); }
+    ul li { margin-bottom: 0.35rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      background: var(--surface);
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      margin: 1rem 0;
+    }
+    th {
+      background: #f1f5f9;
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      color: var(--text);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    td {
+      padding: 0.75rem 1rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      vertical-align: top;
+    }
+    td code, th code {
+      background: #f1f5f9;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.85em;
+      color: var(--blue-dark);
+    }
+
+    .tabs {
+      margin: 1rem 0;
+    }
+    .tab-buttons {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 0;
+    }
+    .tab-btn {
+      padding: 0.5rem 1.1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.15s;
+    }
+    .tab-btn.active {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    pre {
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 1.25rem 1.5rem;
+      border-radius: 0 0 10px 10px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      margin: 0;
+    }
+    code {
+      font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
+    }
+    .inline-code {
+      background: #f1f5f9;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.88em;
+      color: #0f172a;
+    }
+
+    .mcp-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+    .mcp-endpoint {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: var(--code-bg);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+    }
+    .mcp-endpoint .method {
+      background: var(--blue);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+    .mcp-endpoint .url {
+      color: var(--code-text);
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+
+    .tool-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin: 0.75rem 0;
+    }
+    .tool-name {
+      font-weight: 700;
+      font-family: monospace;
+      color: var(--blue-dark);
+      font-size: 1rem;
+    }
+    .tool-desc {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-top: 0.35rem;
+    }
+    .param-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: baseline;
+      font-size: 0.85rem;
+      margin-top: 0.4rem;
+    }
+    .param-name { font-weight: 600; font-family: monospace; color: var(--text); }
+    .param-type { color: var(--blue); font-size: 0.78rem; }
+    .param-desc { color: var(--muted); }
+
+    .use-case-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.75rem;
+      margin: 1rem 0;
+    }
+    .use-case-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+    }
+    .use-case-icon { font-size: 1.4rem; margin-bottom: 0.4rem; }
+    .use-case-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem; color: var(--text); }
+    .use-case-desc { font-size: 0.82rem; color: var(--muted); }
+
+    .about-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .about-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+    }
+    .about-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+    .about-value { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-top: 0.2rem; }
+
+    footer {
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      padding: 1.5rem 2rem;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .footer-links { margin-bottom: 0.5rem; }
+    .footer-links a { margin: 0 0.75rem; color: var(--muted); }
+    .footer-links a:hover { color: var(--blue); }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 1.9rem; }
+      .about-grid { grid-template-columns: 1fr; }
+      .use-case-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">ABOVO<span>.co</span></div>
+    <nav>
+      <a href="https://www.abovo.co">Website</a>
+      <a href="https://www.abovo.co/home/help">Help</a>
+      <a href="/llms.txt">llms.txt</a>
+      <a href="/.well-known/ai-plugin.json">Plugin JSON</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <span class="badge">US Patent No. 10,404,634</span>
+    <h1>Email is the <span class="blue">Universal API</span></h1>
+    <p>ABOVO.co turns any email into a public web page — instantly. No signup. No API key. No authentication required.</p>
+  </div>
+
+  <div class="tldr">
+    <div class="tldr-label">TL;DR</div>
+    <div class="tldr-headline">Send email to <code>POST@abovo.co</code> → get a public URL back in seconds.</div>
+    <div class="tldr-sub">No API key. No signup. SMTP is the API. Free. Works from Python, Node.js, cURL, or any email client.</div>
+  </div>
+
+  <section>
+    <h2>Email Endpoints</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Address</th>
+          <th>Action</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>POST@abovo.co</code></td>
+          <td>Publish to your personal page</td>
+          <td>URL returned to sender via reply email</td>
+        </tr>
+        <tr>
+          <td><code>[groupname]@abovo.co</code></td>
+          <td>Post to or create a group</td>
+          <td>New group requires confirmation: ABOVO emails the first poster a confirmation link; clicking "I accept" activates the group and makes them moderator</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>URL Patterns</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>URL Pattern</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>abovo.co/{sender-email}</code></td>
+          <td>All posts published by that email address</td>
+        </tr>
+        <tr>
+          <td><code>abovo.co/{sender-email}/{post-id}</code></td>
+          <td>A specific published post</td>
+        </tr>
+        <tr>
+          <td><code>{groupname}.abovo.co</code></td>
+          <td>A topic group page (subdomain — e.g. jazz.abovo.co)</td>
+        </tr>
+        <tr>
+          <td><code>abovo.co/Groups</code></td>
+          <td>Browse all public groups</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Code Examples</h2>
+    <div class="tabs">
+      <div class="tab-buttons">
+        <button class="tab-btn active" onclick="showTab(event,'python')">Python</button>
+        <button class="tab-btn" onclick="showTab(event,'nodejs')">Node.js</button>
+        <button class="tab-btn" onclick="showTab(event,'curl')">cURL / SMTP</button>
+      </div>
+      <div id="tab-python" class="tab-panel active">
+        <pre><code>import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+msg = MIMEMultipart('alternative')
+msg['Subject'] = 'My First ABOVO Post'
+msg['From'] = 'you@example.com'
+msg['To'] = 'POST@abovo.co'
+
+html_body = """
+&lt;h1&gt;Hello from ABOVO!&lt;/h1&gt;
+&lt;p&gt;This content is now a public web page.&lt;/p&gt;
+"""
+msg.attach(MIMEText(html_body, 'html'))
+
+with smtplib.SMTP('smtp.gmail.com', 587) as server:
+    server.starttls()
+    server.login('you@example.com', 'your-app-password')
+    server.send_message(msg)
+
+# ABOVO emails you back with your public URL!</code></pre>
+      </div>
+      <div id="tab-nodejs" class="tab-panel">
+        <pre><code>const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: 'you@example.com',
+    pass: 'your-app-password'  // Use Gmail App Password
+  }
+});
+
+await transporter.sendMail({
+  from: 'you@example.com',
+  to: 'POST@abovo.co',
+  subject: 'My ABOVO Post',
+  html: '&lt;h1&gt;Published!&lt;/h1&gt;&lt;p&gt;Now a public web page.&lt;/p&gt;'
+});
+
+// ABOVO replies with your URL:
+// https://www.abovo.co/you@example.com/abc123</code></pre>
+      </div>
+      <div id="tab-curl" class="tab-panel">
+        <pre><code># Using curl with an SMTP relay (e.g. Postfix, Sendgrid, etc.)
+curl --url 'smtps://smtp.gmail.com:465' \\
+  --ssl-reqd \\
+  --mail-from 'you@example.com' \\
+  --mail-rcpt 'POST@abovo.co' \\
+  --user 'you@example.com:your-app-password' \\
+  --upload-file - &lt;&lt;EOF
+From: you@example.com
+To: POST@abovo.co
+Subject: My ABOVO Post
+
+Hello, world! This is now a public web page.
+EOF
+
+# Or with Python one-liner:
+# python3 -m smtplib ... (see Python tab)</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Supported Content</h2>
+    <table>
+      <thead><tr><th>Type</th><th>How to Send</th><th>Rendered As</th></tr></thead>
+      <tbody>
+        <tr><td>Plain text</td><td>Text email body</td><td>Formatted text page</td></tr>
+        <tr><td>HTML</td><td>HTML email body</td><td>Fully rendered HTML page</td></tr>
+        <tr><td>Images</td><td>Email attachment (JPEG, PNG, GIF, WebP)</td><td>Displayed inline on page</td></tr>
+        <tr><td>PDFs</td><td>Email attachment</td><td>Embedded PDF viewer</td></tr>
+        <tr><td>Any file</td><td>Email attachment</td><td>Download link on page</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>MCP Server for AI Agents</h2>
+    <p>Connect AI applications to ABOVO.co's publishing capabilities via the Model Context Protocol (MCP). Claude Desktop, Cursor, VS Code, and any MCP-compatible client can use this server.</p>
+
+    <div class="mcp-box">
+      <strong>Remote MCP Endpoint</strong>
+      <div class="mcp-endpoint">
+        <span class="method">POST</span>
+        <span class="url">https://{this-server-domain}/mcp</span>
+      </div>
+      <p style="margin-top: 0.75rem; font-size: 0.88rem;">Add to your MCP client config as a Streamable HTTP transport.</p>
+    </div>
+
+    <h3>Available Tools</h3>
+
+    <div class="tool-card">
+      <div class="tool-name">publish_to_web</div>
+      <div class="tool-desc">Publish any content to a public web page on ABOVO.co.</div>
+      <div class="param-row">
+        <span class="param-name">subject</span>
+        <span class="param-type">string, required</span>
+        <span class="param-desc">— Page title / subject line</span>
+      </div>
+      <div class="param-row">
+        <span class="param-name">body</span>
+        <span class="param-type">string, required</span>
+        <span class="param-desc">— Content to publish (plain text or HTML)</span>
+      </div>
+      <div class="param-row">
+        <span class="param-name">format</span>
+        <span class="param-type">"text" | "html", default "html"</span>
+        <span class="param-desc">— Content format</span>
+      </div>
+      <div class="param-row">
+        <span class="param-name">group</span>
+        <span class="param-type">string, optional</span>
+        <span class="param-desc">— Post to a group instead of personal page</span>
+      </div>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-name">get_abovo_info</div>
+      <div class="tool-desc">Get information about ABOVO.co capabilities, URL formats, groups, or use cases.</div>
+      <div class="param-row">
+        <span class="param-name">query</span>
+        <span class="param-type">"capabilities" | "url_format" | "groups" | "use_cases" | "about"</span>
+        <span class="param-desc">— What to look up</span>
+      </div>
+    </div>
+
+    <h3>Claude Desktop Config</h3>
+    <pre><code>{
+  "mcpServers": {
+    "abovo": {
+      "type": "streamable-http",
+      "url": "https://{this-server-domain}/mcp"
+    }
+  }
+}</code></pre>
+  </section>
+
+  <section>
+    <h2>Use Cases for AI Agents</h2>
+    <div class="use-case-grid">
+      <div class="use-case-card">
+        <div class="use-case-icon">📄</div>
+        <div class="use-case-title">Publish Research</div>
+        <div class="use-case-desc">AI sends a research summary to ABOVO → shareable URL in seconds</div>
+      </div>
+      <div class="use-case-card">
+        <div class="use-case-icon">📝</div>
+        <div class="use-case-title">Instant Blog</div>
+        <div class="use-case-desc">Turn AI-generated content into a permanent public page instantly</div>
+      </div>
+      <div class="use-case-card">
+        <div class="use-case-icon">📁</div>
+        <div class="use-case-title">Share Files</div>
+        <div class="use-case-desc">Attach any file to an email → published with a download link</div>
+      </div>
+      <div class="use-case-card">
+        <div class="use-case-icon">🗄️</div>
+        <div class="use-case-title">Archive Content</div>
+        <div class="use-case-desc">Permanent URLs for AI-generated outputs, reports, and summaries</div>
+      </div>
+      <div class="use-case-card">
+        <div class="use-case-icon">👥</div>
+        <div class="use-case-title">Team Groups</div>
+        <div class="use-case-desc">Post to shared channels — agents and humans contributing together</div>
+      </div>
+      <div class="use-case-card">
+        <div class="use-case-icon">🔗</div>
+        <div class="use-case-title">Zero-Auth Sharing</div>
+        <div class="use-case-desc">Share anything with anyone — no login required to view</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>About</h2>
+    <p>ABOVO.co is built and operated by Abovo42 Corporation. The core idea: email is the most universal API ever built — every device, language, and platform can send email. ABOVO makes the web equally accessible.</p>
+    <div class="about-grid">
+      <div class="about-item">
+        <div class="about-label">Company</div>
+        <div class="about-value">Abovo42 Corporation</div>
+      </div>
+      <div class="about-item">
+        <div class="about-label">Founder</div>
+        <div class="about-value">Sean P. Fenlon</div>
+      </div>
+      <div class="about-item">
+        <div class="about-label">Patent</div>
+        <div class="about-value">US Patent No. 10,404,634</div>
+      </div>
+      <div class="about-item">
+        <div class="about-label">Incubator</div>
+        <div class="about-value">Cogo Labs / Link Ventures</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="footer-links">
+    <a href="https://www.abovo.co">ABOVO.co</a>
+    <a href="https://www.abovo.co/home/help">Help</a>
+    <a href="https://www.abovo.co/Groups">Groups</a>
+    <a href="https://www.abovo.co/Home/Terms">Terms</a>
+    <a href="/llms.txt">llms.txt</a>
+    <a href="/.well-known/ai-plugin.json">AI Plugin JSON</a>
+  </div>
+  <div>&copy; Abovo42 Corporation. US Patent No. 10,404,634.</div>
+</footer>
+
+<script>
+function showTab(e, id) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+}
+</script>
+</body>
+</html>`;
+
+const LLMS_TXT = `# ABOVO.co
+
+> The simplest way to publish content to the web. Send an email, get a public URL.
+
+ABOVO.co is an email-to-web publishing platform. Any email sent to POST@abovo.co is instantly converted into a public web page. The sender receives a URL back within seconds. No signup, no API key, no authentication required.
+
+US Patent No. 10,404,634.
+
+## API
+
+ABOVO.co's API is email (SMTP). There is no REST API.
+
+- Publish: Send any email to POST@abovo.co → receive a public URL back
+- Groups: Send to [groupname]@abovo.co → post to or create a topic group
+  - New group creation requires confirmation: ABOVO emails the first sender a link; they must click "I accept" to activate the group and become moderator
+  - Group page lives at a subdomain: https://{groupname}.abovo.co (e.g. https://jazz.abovo.co)
+- Attachments: Any file attached is published on the web page
+- HTML: Full HTML rendering supported
+- Cost: Free
+- Auth: None required
+
+## URL Patterns
+
+- User page: https://www.abovo.co/{sender-email}
+- Post: https://www.abovo.co/{sender-email}/{post-id}
+- Groups: https://www.abovo.co/Groups
+
+## MCP Server
+
+A remote Model Context Protocol (MCP) server is available for AI agents.
+
+- Endpoint: https://abovo.replit.app/mcp
+- Transport: Streamable HTTP
+- Tools: publish_to_web, get_abovo_info
+
+## Links
+
+- Website: https://www.abovo.co
+- Help: https://www.abovo.co/home/help
+`;
+
+const AI_PLUGIN_JSON = {
+  schema_version: "v1",
+  name_for_human: "ABOVO.co — Email-to-Web Publishing",
+  name_for_model: "abovo_publish",
+  description_for_human:
+    "Publish any content to a public web page by sending an email. No signup required. Free.",
+  description_for_model:
+    "ABOVO.co publishes content to the web via email. Send any content to POST@abovo.co and receive a permanent public URL within seconds. No authentication, no API key, no signup required. SMTP is the API. Supports text, HTML, images, file attachments. URL patterns: abovo.co/{email} for user pages, abovo.co/{email}/{id} for posts. Groups via [name]@abovo.co — group pages live at {groupname}.abovo.co (subdomain, e.g. jazz.abovo.co); new group creation requires the first poster to confirm via email before the group goes live. US Patent No. 10,404,634. Remote MCP server available at https://abovo.replit.app/mcp",
+  auth: { type: "none" },
+  api: {
+    type: "smtp",
+    url: "smtp://POST@abovo.co",
+    note: "ABOVO.co uses SMTP (email) as its API. Send an email to POST@abovo.co via any SMTP client.",
+  },
+  mcp: {
+    url: "https://abovo.replit.app/mcp",
+    transport: "streamable-http",
+  },
+  logo_url: "https://www.abovo.co/images/inner-logo.svg",
+  contact_email: "info@abovo.co",
+  legal_info_url: "https://www.abovo.co/Home/Terms",
+};
+
+router.get("/", (_req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(LANDING_PAGE_HTML);
+});
+
+router.get("/llms.txt", (_req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.send(LLMS_TXT);
+});
+
+router.get("/.well-known/ai-plugin.json", (_req: Request, res: Response) => {
+  res.setHeader("Content-Type", "application/json");
+  res.json(AI_PLUGIN_JSON);
+});
+
+export default router;
