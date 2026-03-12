@@ -1,5 +1,3 @@
-<!-- mcp-name: io.github.seanfenlon/abovo-mcp-server -->
-
 # ABOVO MCP Server
 
 **Publish any content to a permanent public web page by sending an email.**
@@ -7,6 +5,10 @@
 No API key. No signup. No authentication required. SMTP is the API.
 
 US Patent No. 10,404,634 — Abovo42 Corporation — Founder: Sean P. Fenlon
+
+<a href="https://glama.ai/mcp/servers/seanfenlon/abovo-mcp-server">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/seanfenlon/abovo-mcp-server/badge" alt="ABOVO Server MCP server" />
+</a>
 
 ---
 
