@@ -2,9 +2,17 @@
   "name": "@seanfenlon/abovo-mcp-server",
   "version": "1.0.0",
   "type": "module",
+  "files": [
+    "dist/",
+    "src/",
+    "build.ts",
+    "README.md",
+    ".mcp/"
+  ],
   "scripts": {
     "dev": "NODE_ENV=development tsx ./src/index.ts",
     "build": "tsx ./build.ts",
+    "prepublishOnly": "tsx ./build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
