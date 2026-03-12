@@ -24,41 +24,11 @@
         "type": "stdio"
       },
       "environmentVariables": [
-        {
-          "description": "SMTP server hostname (e.g. smtp.gmail.com)",
-          "name": "ABOVO_SMTP_HOST",
-          "isRequired": false,
-          "format": "string",
-          "isSecret": false
-        },
-        {
-          "description": "SMTP port (587 for TLS, 465 for SSL)",
-          "name": "ABOVO_SMTP_PORT",
-          "isRequired": false,
-          "format": "string",
-          "isSecret": false
-        },
-        {
-          "description": "SMTP username / email address",
-          "name": "ABOVO_SMTP_USER",
-          "isRequired": true,
-          "format": "string",
-          "isSecret": false
-        },
-        {
-          "description": "SMTP password or app password",
-          "name": "ABOVO_SMTP_PASS",
-          "isRequired": true,
-          "format": "string",
-          "isSecret": true
-        },
-        {
-          "description": "Sender email address (defaults to SMTP_USER)",
-          "name": "ABOVO_SENDER_EMAIL",
-          "isRequired": false,
-          "format": "string",
-          "isSecret": false
-        }
+        {"name": "ABOVO_SMTP_HOST", "description": "SMTP server hostname", "isRequired": false, "format": "string", "isSecret": false},
+        {"name": "ABOVO_SMTP_PORT", "description": "SMTP port", "isRequired": false, "format": "string", "isSecret": false},
+        {"name": "ABOVO_SMTP_USER", "description": "SMTP username/email", "isRequired": true, "format": "string", "isSecret": false},
+        {"name": "ABOVO_SMTP_PASS", "description": "SMTP password or app password", "isRequired": true, "format": "string", "isSecret": true},
+        {"name": "ABOVO_SENDER_EMAIL", "description": "Sender email address", "isRequired": false, "format": "string", "isSecret": false}
       ]
     }
   ]
