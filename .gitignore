@@ -41,6 +41,16 @@ testem.log
 .DS_Store
 Thumbs.db
 
+# Environment / secrets — never commit SMTP credentials or other env values
+.env
+.env.*
+!.env.example
+
+# Runtime telemetry logs (JSONL)
+logs/
+telemetry.jsonl
+*.jsonl
+
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 

@@ -3,29 +3,43 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import nodemailer from "nodemailer";
+import { SERVER_VERSION } from "../lib/version";
+import { logEvent } from "../lib/telemetry";
 
 const router: IRouter = Router();
 
 function createMcpServer() {
   const server = new McpServer({
     name: "abovo",
-    version: "1.0.0",
+    version: SERVER_VERSION,
   });
 
   server.tool(
     "publish_to_web",
-    "Publish any content to a public web page on ABOVO.co. Sends an email to POST@abovo.co which instantly creates a public web page. Supports plain text, HTML, and file attachments.",
+    "Publish content to a public web page on ABOVO.co by emailing it through a single, server-configured SMTP identity. Accepts a subject, body, format (text or html), and an optional group. Does NOT support file attachments — the input schema is limited to subject/body/format/group. Returns a confirmation and a link to the sender's ABOVO.co page; it does NOT return the exact URL of the new post (ABOVO.co emails that permanent URL to the sending address separately). Not idempotent: repeated calls create duplicate posts.",
     {
       subject: z.string().describe("Subject line / title of the web page"),
       body: z.string().describe("Content to publish. Can be plain text or HTML."),
       format: z.enum(["text", "html"]).default("html").describe("Content format"),
       group: z.string().optional().describe("Group name. If provided, posts to [group]@abovo.co instead"),
     },
+    {
+      title: "Publish to ABOVO.co",
+      readOnlyHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+      destructiveHint: false,
+    },
     async ({ subject, body, format, group }) => {
+      // Telemetry: coarse metadata only — never the subject, body, or any address.
+      const target = group ? "group" : "personal";
+      logEvent("publish_attempt", { format, target });
+
       const smtpUser = process.env.ABOVO_SMTP_USER;
       const smtpPass = process.env.ABOVO_SMTP_PASS;
 
       if (!smtpUser || !smtpPass) {
+        logEvent("publish_failure", { format, target, reason: "smtp_not_configured" });
         return {
           content: [
             {
@@ -61,12 +75,30 @@ function createMcpServer() {
         },
       });
 
-      await transporter.sendMail({
-        from: senderEmail,
-        to: destination,
-        subject: subject,
-        ...(format === "html" ? { html: body } : { text: body }),
-      });
+      try {
+        await transporter.sendMail({
+          from: senderEmail,
+          to: destination,
+          subject: subject,
+          ...(format === "html" ? { html: body } : { text: body }),
+        });
+      } catch (err) {
+        // Reason is the transport error message (e.g. "Invalid login"),
+        // truncated. It does not include credentials or the message body.
+        const reason = (err instanceof Error ? err.message : String(err)).slice(0, 300);
+        logEvent("publish_failure", { format, target, reason });
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Failed to send to ABOVO.co: ${reason}`,
+            },
+          ],
+        };
+      }
+
+      logEvent("publish_success", { format, target });
 
       return {
         content: [
@@ -75,13 +107,15 @@ function createMcpServer() {
             text: [
               `Successfully sent to ${destination}`,
               "",
-              "ABOVO.co will process your email and reply with your public URL within seconds.",
-              `Your page will be available at: https://www.abovo.co/${encodeURIComponent(senderEmail)}/`,
+              "ABOVO.co will process your email and reply to the sending address with the",
+              "permanent URL of this specific post within seconds. This tool does not receive",
+              "that per-post URL and cannot return it.",
               "",
+              `Sender's ABOVO.co page (all of this sender's posts): https://www.abovo.co/${encodeURIComponent(senderEmail)}/`,
               group
-                ? `Posted to group: https://www.abovo.co/${group}`
-                : "Published to your ABOVO.co page.",
-            ].join("\n"),
+                ? `Group page: https://${group}.abovo.co`
+                : "",
+            ].filter(Boolean).join("\n"),
           },
         ],
       };
@@ -320,6 +354,18 @@ router.all("/mcp", async (req: Request, res: Response) => {
   if (req.method === "OPTIONS") {
     res.status(204).end();
     return;
+  }
+
+  // Telemetry: record tools/list discovery calls (JSON-RPC method inspection
+  // only — no request body or arguments are logged).
+  try {
+    const body: unknown = req.body;
+    const messages = Array.isArray(body) ? body : [body];
+    if (messages.some((m) => (m as { method?: string } | null)?.method === "tools/list")) {
+      logEvent("tools_list");
+    }
+  } catch {
+    // Ignore — telemetry must not affect request handling.
   }
 
   const server = createMcpServer();

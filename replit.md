@@ -45,7 +45,7 @@ artifacts/api-server/
 
 ## MCP Server
 
-- **Server name**: "abovo", version: "1.0.0"
+- **Server name**: "abovo", version: "1.1.0"
 - **Transport**: Streamable HTTP (stateless mode, `sessionIdGenerator: undefined`)
 - **Tools**:
   - `publish_to_web` — Sends email to POST@abovo.co via SMTP
