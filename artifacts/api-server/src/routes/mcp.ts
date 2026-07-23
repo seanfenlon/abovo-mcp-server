@@ -8,7 +8,7 @@ import { logEvent } from "../lib/telemetry";
 
 const router: IRouter = Router();
 
-function createMcpServer() {
+export function createMcpServer() {
   const server = new McpServer({
     name: "abovo",
     version: SERVER_VERSION,

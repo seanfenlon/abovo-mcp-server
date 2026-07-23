@@ -37,8 +37,10 @@ export function logEvent(
     ...data,
   });
 
-  // Always surface to stdout so events appear in the platform's log stream.
-  console.log(`[telemetry] ${line}`);
+  // Surface to stderr (not stdout): in stdio transport mode stdout carries the
+  // MCP JSON-RPC stream, so logging there would corrupt the protocol. stderr is
+  // safe in both HTTP and stdio modes and still lands in the platform log stream.
+  console.error(`[telemetry] ${line}`);
 
   // Best-effort append to a JSONL file; swallow all errors.
   void (async () => {

@@ -55,18 +55,32 @@ async function buildAll() {
       !(pkg.dependencies?.[dep]?.startsWith("workspace:")),
   );
 
-  await esbuild({
-    entryPoints: [path.resolve(__dirname, "src/index.ts")],
-    platform: "node",
+  const common = {
+    platform: "node" as const,
     bundle: true,
-    format: "cjs",
-    outfile: path.resolve(distDir, "index.cjs"),
+    format: "cjs" as const,
     define: {
       "process.env.NODE_ENV": '"production"',
     },
     minify: true,
     external: externals,
-    logLevel: "info",
+    logLevel: "info" as const,
+  };
+
+  // HTTP server (streamable-http) entrypoint.
+  await esbuild({
+    ...common,
+    entryPoints: [path.resolve(__dirname, "src/index.ts")],
+    outfile: path.resolve(distDir, "index.cjs"),
+  });
+
+  // Local stdio entrypoint — the npm `bin`. Shebang makes it directly
+  // executable once npm links it onto PATH.
+  await esbuild({
+    ...common,
+    entryPoints: [path.resolve(__dirname, "src/stdio.ts")],
+    outfile: path.resolve(distDir, "stdio.cjs"),
+    banner: { js: "#!/usr/bin/env node" },
   });
 }
 
