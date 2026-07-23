@@ -10,29 +10,6 @@ US Patent No. 10,404,634 — Abovo42 Corporation — Founder: Sean P. Fenlon
 
 ---
 
-## Remote MCP Server
-
-Connect any MCP-compatible AI client directly — no installation needed:
-
-```
-Transport: Streamable HTTP
-URL: https://abovo.replit.app/mcp
-```
-
-### Claude Desktop (`claude_desktop_config.json`)
-
-```json
-{
-  "mcpServers": {
-    "abovo": {
-      "url": "https://abovo.replit.app/mcp"
-    }
-  }
-}
-```
-
----
-
 ## How It Works
 
 Send any email to `POST@abovo.co` and it instantly becomes a public web page. ABOVO replies with your permanent URL within seconds.
@@ -80,15 +57,34 @@ Returns information about ABOVO.co capabilities, URL formats, groups, or use cas
 
 ---
 
-## Local stdio Installation (npm)
+## Installation & Usage (npm, local stdio)
 
-For running the MCP server locally via stdio (e.g. for offline use or SMTP relay):
+This MCP server is distributed as an npm package and runs locally over **stdio** — there is no hosted or remote endpoint. Install it globally:
 
 ```bash
 npm install -g @seanfenlon/abovo-mcp-server
 ```
 
-**Required environment variables:**
+A global install exposes the `abovo-mcp-server` command (a stdio MCP server). Configure your MCP client to launch it over stdio:
+
+### Claude Desktop (`claude_desktop_config.json`)
+
+```json
+{
+  "mcpServers": {
+    "abovo": {
+      "command": "npx",
+      "args": ["-y", "@seanfenlon/abovo-mcp-server"],
+      "env": {
+        "ABOVO_SMTP_USER": "you@example.com",
+        "ABOVO_SMTP_PASS": "your-app-password"
+      }
+    }
+  }
+}
+```
+
+**Environment variables:**
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -122,6 +118,6 @@ The `publish_to_web` MCP tool is **experimental**. Current known limitations:
 ## Links
 
 - Website: [abovo.co](https://www.abovo.co)
-- Developer docs: [abovo.replit.app](https://abovo.replit.app)
+- npm: [@seanfenlon/abovo-mcp-server](https://www.npmjs.com/package/@seanfenlon/abovo-mcp-server)
 - MCP Registry: [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io)
 - Help: [abovo.co/home/help](https://www.abovo.co/home/help)

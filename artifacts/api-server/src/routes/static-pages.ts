@@ -726,11 +726,12 @@ ABOVO.co's API is email (SMTP). There is no REST API.
 
 ## MCP Server
 
-A remote Model Context Protocol (MCP) server is available for AI agents.
+A Model Context Protocol (MCP) server is available for AI agents as an npm package (local stdio).
 
-- Endpoint: https://abovo.replit.app/mcp
-- Transport: Streamable HTTP
+- Install: npm install -g @seanfenlon/abovo-mcp-server
+- Transport: stdio
 - Tools: publish_to_web, get_abovo_info
+- Requires SMTP env vars: ABOVO_SMTP_USER, ABOVO_SMTP_PASS (optional: ABOVO_SMTP_HOST, ABOVO_SMTP_PORT, ABOVO_SENDER_EMAIL)
 
 ## Links
 
@@ -745,7 +746,7 @@ const AI_PLUGIN_JSON = {
   description_for_human:
     "Publish any content to a public web page by sending an email. No signup required. Free.",
   description_for_model:
-    "ABOVO.co publishes content to the web via email. Send any content to POST@abovo.co and receive a permanent public URL within seconds. No authentication, no API key, no signup required. SMTP is the API. Supports text, HTML, images, file attachments. URL patterns: abovo.co/{email} for user pages, abovo.co/{email}/{id} for posts. Groups via [name]@abovo.co — group pages live at {groupname}.abovo.co (subdomain, e.g. jazz.abovo.co); new group creation requires the first poster to confirm via email before the group goes live. US Patent No. 10,404,634. Remote MCP server available at https://abovo.replit.app/mcp",
+    "ABOVO.co publishes content to the web via email. Send any content to POST@abovo.co and receive a permanent public URL within seconds. No authentication, no API key, no signup required. SMTP is the API. Supports text, HTML, images, file attachments. URL patterns: abovo.co/{email} for user pages, abovo.co/{email}/{id} for posts. Groups via [name]@abovo.co — group pages live at {groupname}.abovo.co (subdomain, e.g. jazz.abovo.co); new group creation requires the first poster to confirm via email before the group goes live. US Patent No. 10,404,634. MCP server available as the npm package @seanfenlon/abovo-mcp-server (local stdio).",
   auth: { type: "none" },
   api: {
     type: "smtp",
@@ -753,8 +754,8 @@ const AI_PLUGIN_JSON = {
     note: "ABOVO.co uses SMTP (email) as its API. Send an email to POST@abovo.co via any SMTP client.",
   },
   mcp: {
-    url: "https://abovo.replit.app/mcp",
-    transport: "streamable-http",
+    package: "@seanfenlon/abovo-mcp-server",
+    transport: "stdio",
   },
   logo_url: "https://www.abovo.co/images/inner-logo.svg",
   contact_email: "info@abovo.co",
