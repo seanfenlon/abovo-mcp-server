@@ -3,16 +3,52 @@
   "name": "io.github.seanfenlon/abovo-mcp-server",
   "title": "ABOVO.co — Email-to-Web Publishing",
   "description": "Publish content to the web by emailing POST@abovo.co. No API key, no signup. SMTP is the API.",
-  "version": "1.0.0",
-  "websiteUrl": "https://abovo.replit.app",
+  "version": "1.1.0",
+  "websiteUrl": "https://www.abovo.co",
   "repository": {
     "url": "https://github.com/seanfenlon/abovo-mcp-server",
     "source": "github"
   },
-  "remotes": [
+  "packages": [
     {
-      "type": "streamable-http",
-      "url": "https://abovo.replit.app/mcp"
+      "registry_type": "npm",
+      "identifier": "@seanfenlon/abovo-mcp-server",
+      "version": "1.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environment_variables": [
+        {
+          "name": "ABOVO_SMTP_USER",
+          "description": "SMTP username / sending email address",
+          "is_required": true,
+          "is_secret": false
+        },
+        {
+          "name": "ABOVO_SMTP_PASS",
+          "description": "SMTP password or app password",
+          "is_required": true,
+          "is_secret": true
+        },
+        {
+          "name": "ABOVO_SMTP_HOST",
+          "description": "SMTP hostname (default: smtp.gmail.com)",
+          "is_required": false,
+          "is_secret": false
+        },
+        {
+          "name": "ABOVO_SMTP_PORT",
+          "description": "SMTP port (default: 587)",
+          "is_required": false,
+          "is_secret": false
+        },
+        {
+          "name": "ABOVO_SENDER_EMAIL",
+          "description": "From address (defaults to ABOVO_SMTP_USER)",
+          "is_required": false,
+          "is_secret": false
+        }
+      ]
     }
   ]
 }

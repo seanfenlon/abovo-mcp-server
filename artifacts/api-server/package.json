@@ -1,7 +1,10 @@
 {
   "name": "@seanfenlon/abovo-mcp-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
+  "bin": {
+    "abovo-mcp-server": "dist/stdio.cjs"
+  },
   "files": [
     "dist/",
     "src/",
@@ -12,7 +15,7 @@
   "scripts": {
     "dev": "NODE_ENV=development tsx ./src/index.ts",
     "build": "tsx ./build.ts",
-    "prepublishOnly": "tsx ./build.ts",
+    "prepublishOnly": "echo \"ERROR: do not run npm publish from artifacts/api-server — the dev manifest uses pnpm-only workspace/catalog protocols and is uninstallable via npm. Run: tsx ./build.ts && tsx ./stage-publish.ts, then publish from publish-staging/ instead.\" >&2 && exit 1",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
