@@ -96,6 +96,10 @@ async function stage(): Promise<void> {
     type: "module",
     bin: devPkg.bin,
     engines: { node: ">=18" },
+    // Scoped packages are "restricted" by default on npm; without this a
+    // publish attempt fails with a payment-required error unless the
+    // --access public flag is remembered. Declaring it here means it isn't.
+    publishConfig: { access: "public" },
     files: ["dist/", ".mcp/", "README.md", "LICENSE"],
     // NO dependencies / devDependencies / scripts — dist/stdio.cjs is a
     // self-contained bundle. See header comment before changing this.

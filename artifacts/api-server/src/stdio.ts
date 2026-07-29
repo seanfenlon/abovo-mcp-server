@@ -4,6 +4,18 @@
 // @seanfenlon/abovo-mcp-server` exposes the `abovo-mcp-server` command, which
 // runs the same MCP server (createMcpServer) over stdio. stdout is reserved for
 // the MCP JSON-RPC stream; all logging goes to stderr (see lib/telemetry).
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+// Local installs must not create a stray logs/ directory in the end user's
+// working directory (the telemetry module's relative fallback would). Point
+// telemetry at the OS temp dir instead — but only if the operator hasn't
+// already chosen a location, so an explicit setting always wins. This must
+// run before the first telemetry call.
+if (!process.env.ABOVO_TELEMETRY_FILE) {
+  process.env.ABOVO_TELEMETRY_FILE = join(tmpdir(), "abovo-mcp-telemetry.jsonl");
+}
+
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createMcpServer } from "./routes/mcp";
 import { SERVER_VERSION } from "./lib/version";

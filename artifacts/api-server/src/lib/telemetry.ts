@@ -19,11 +19,14 @@ export type TelemetryEvent =
   | "publish_success"
   | "publish_failure";
 
-const TELEMETRY_FILE = process.env.ABOVO_TELEMETRY_FILE || "logs/telemetry.jsonl";
 // Telemetry is on by default; set ABOVO_TELEMETRY_DISABLED=1 to silence it.
 const TELEMETRY_DISABLED = process.env.ABOVO_TELEMETRY_DISABLED === "1";
 
-let dirEnsured = false;
+// The target file is resolved lazily at each write (not at module load) so
+// entrypoints can point ABOVO_TELEMETRY_FILE somewhere sensible before the
+// first event — e.g. the stdio entrypoint redirects it to the OS temp dir so
+// a local install never creates a stray logs/ folder in the user's cwd.
+let ensuredDirFor: string | null = null;
 
 export function logEvent(
   event: TelemetryEvent,
@@ -43,13 +46,15 @@ export function logEvent(
   console.error(`[telemetry] ${line}`);
 
   // Best-effort append to a JSONL file; swallow all errors.
+  const telemetryFile =
+    process.env.ABOVO_TELEMETRY_FILE || "logs/telemetry.jsonl";
   void (async () => {
     try {
-      if (!dirEnsured) {
-        await mkdir(dirname(TELEMETRY_FILE), { recursive: true });
-        dirEnsured = true;
+      if (ensuredDirFor !== telemetryFile) {
+        await mkdir(dirname(telemetryFile), { recursive: true });
+        ensuredDirFor = telemetryFile;
       }
-      await appendFile(TELEMETRY_FILE, line + "\n", "utf8");
+      await appendFile(telemetryFile, line + "\n", "utf8");
     } catch {
       // Intentionally ignored — telemetry must not affect request handling.
     }
