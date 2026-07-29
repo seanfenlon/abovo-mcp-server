@@ -558,12 +558,12 @@ EOF
     <p>Connect AI applications to ABOVO.co's publishing capabilities via the Model Context Protocol (MCP). Claude Desktop, Cursor, VS Code, and any MCP-compatible client can use this server.</p>
 
     <div class="mcp-box">
-      <strong>Remote MCP Endpoint</strong>
+      <strong>npm Package (local stdio)</strong>
       <div class="mcp-endpoint">
-        <span class="method">POST</span>
-        <span class="url">https://{this-server-domain}/mcp</span>
+        <span class="method">RUN</span>
+        <span class="url">npx -y @seanfenlon/abovo-mcp-server</span>
       </div>
-      <p style="margin-top: 0.75rem; font-size: 0.88rem;">Add to your MCP client config as a Streamable HTTP transport.</p>
+      <p style="margin-top: 0.75rem; font-size: 0.88rem;">Install from npm and add to your MCP client config as a local stdio command.</p>
     </div>
 
     <h3>Available Tools</h3>
@@ -607,8 +607,12 @@ EOF
     <pre><code>{
   "mcpServers": {
     "abovo": {
-      "type": "streamable-http",
-      "url": "https://{this-server-domain}/mcp"
+      "command": "npx",
+      "args": ["-y", "@seanfenlon/abovo-mcp-server"],
+      "env": {
+        "ABOVO_SMTP_USER": "you@example.com",
+        "ABOVO_SMTP_PASS": "your-app-password"
+      }
     }
   }
 }</code></pre>

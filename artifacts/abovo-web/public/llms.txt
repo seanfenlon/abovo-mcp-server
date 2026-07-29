@@ -21,10 +21,11 @@ ABOVO.co's API is email (SMTP). There is no REST API.
 
 ## MCP Server
 
-A remote Model Context Protocol (MCP) server is available for AI agents.
+A Model Context Protocol (MCP) server is available for AI agents as an npm package that runs locally.
 
-- Endpoint: https://abovo.replit.app/mcp
-- Transport: Streamable HTTP
+- Package: @seanfenlon/abovo-mcp-server (npm)
+- Run: npx -y @seanfenlon/abovo-mcp-server
+- Transport: stdio (local; no hosted or remote endpoint)
 - Tools: publish_to_web, get_abovo_info
 
 ## URL Patterns

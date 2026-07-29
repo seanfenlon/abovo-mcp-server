@@ -93,6 +93,23 @@ A global install exposes the `abovo-mcp-server` command (a stdio MCP server). Co
 | `ABOVO_SMTP_HOST` | No | SMTP hostname (default: `smtp.gmail.com`) |
 | `ABOVO_SMTP_PORT` | No | SMTP port (default: `587`) |
 | `ABOVO_SENDER_EMAIL` | No | From address (defaults to `ABOVO_SMTP_USER`) |
+| `ABOVO_TELEMETRY_FILE` | No | Where the telemetry JSONL file is written (see Telemetry below) |
+| `ABOVO_TELEMETRY_DISABLED` | No | Set to `1` to disable telemetry completely |
+
+---
+
+## Telemetry
+
+This server records lightweight local telemetry, and it is **on by default**. For each lifecycle or publish event it prints one line to standard error and appends the same line to a JSONL file.
+
+It records **coarse metadata only**: the event name, a timestamp, the server version, the transport, the content format, and whether the target was a personal page or a group. It **never** records subjects, message bodies, email addresses, or credentials.
+
+Where the file goes:
+
+- **Local stdio install (the npm package):** the operating system's temporary directory (`abovo-mcp-telemetry.jsonl`).
+- **Otherwise:** a `logs/` folder relative to the working directory.
+
+You can point it elsewhere with the `ABOVO_TELEMETRY_FILE` environment variable, or silence it completely by setting `ABOVO_TELEMETRY_DISABLED` to `1`.
 
 ---
 
