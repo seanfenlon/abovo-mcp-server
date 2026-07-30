@@ -44,6 +44,40 @@ async function stage(): Promise<void> {
     process.exit(1);
   }
 
+  // Read and validate BOTH manifests before touching the staging folder, so
+  // a validation failure can never leave behind a wiped, half-staged folder
+  // that looks publishable but has no manifest in it.
+  const devPkg = JSON.parse(
+    await readFile(path.resolve(__dirname, "package.json"), "utf-8"),
+  );
+  const mcpManifest = JSON.parse(
+    await readFile(path.join(repoRoot, ".mcp", "server.json"), "utf-8"),
+  );
+
+  if (mcpManifest.version !== devPkg.version) {
+    console.error(
+      `ERROR: version mismatch — .mcp/server.json declares ${mcpManifest.version} ` +
+        `but package.json declares ${devPkg.version}. Align the two before staging.`,
+    );
+    process.exit(1);
+  }
+  const npmPackages = (mcpManifest.packages ?? []).filter(
+    (p: { registry_type?: string }) => p.registry_type === "npm",
+  );
+  if (npmPackages.length !== 1) {
+    console.error(
+      `ERROR: .mcp/server.json must list exactly one npm package entry, found ${npmPackages.length}.`,
+    );
+    process.exit(1);
+  }
+  if (npmPackages[0].identifier !== devPkg.name) {
+    console.error(
+      `ERROR: .mcp/server.json's npm package identifier (${npmPackages[0].identifier}) ` +
+        `does not match the package being staged (${devPkg.name}).`,
+    );
+    process.exit(1);
+  }
+
   await rm(stageDir, { recursive: true, force: true });
   await mkdir(path.join(stageDir, "dist"), { recursive: true });
   await mkdir(path.join(stageDir, ".mcp"), { recursive: true });
@@ -65,13 +99,14 @@ async function stage(): Promise<void> {
 
   // Build the publish manifest fresh. Name, version, and bin come straight
   // from the development manifest so they can never drift out of sync.
-  const devPkg = JSON.parse(
-    await readFile(path.resolve(__dirname, "package.json"), "utf-8"),
-  );
-
   const publishPkg = {
     name: devPkg.name,
     version: devPkg.version,
+    // The public MCP registry proves ownership by downloading the published
+    // npm package and checking this field against the name in
+    // .mcp/server.json. Read from that file — never hardcoded — so the two
+    // can never disagree.
+    mcpName: mcpManifest.name,
     description:
       "MCP server for ABOVO.co — publish any content to a permanent public web page by sending an email. No API key, no signup. Runs locally over stdio.",
     license: "MIT",

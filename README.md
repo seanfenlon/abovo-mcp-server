@@ -126,8 +126,6 @@ The `publish_to_web` MCP tool is **experimental**. Current known limitations:
 
 ## Patent Notice
 
-> **DRAFT — FOR COUNSEL REVIEW**
->
 > This project relates to U.S. Patent No. 10,404,634 B2. The open-source license granted for this repository (the MIT License) applies to the copyright in this software only. That license does not, by itself, grant any license or other rights under U.S. Patent No. 10,404,634 B2 beyond those necessary to run this software as provided. No patent license is granted by implication, estoppel, or otherwise, except as expressly set out in a separate written agreement.
 
 ---
