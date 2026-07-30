@@ -21,12 +21,15 @@ ABOVO.co's API is email (SMTP). There is no REST API.
 
 ## MCP Server
 
-A Model Context Protocol (MCP) server is available for AI agents as an npm package that runs locally.
+A Model Context Protocol (MCP) server is available for AI agents. It runs locally over stdio and is distributed as a downloadable bundle attached to a GitHub release — no package-registry account and no signup are involved.
 
-- Package: @seanfenlon/abovo-mcp-server (npm)
-- Run: npx -y @seanfenlon/abovo-mcp-server
+- Registry name: io.github.seanfenlon/abovo-mcp-server
+- Downloads: https://github.com/seanfenlon/abovo-mcp-server/releases/latest
+- Claude Desktop: download the .mcpb bundle from that release and open it
+- Any other client: npm install -g <the .tgz asset URL from that same release>
 - Transport: stdio (local; no hosted or remote endpoint)
 - Tools: publish_to_web, get_abovo_info
+- Requires SMTP env vars: ABOVO_SMTP_USER, ABOVO_SMTP_PASS (optional: ABOVO_SMTP_HOST, ABOVO_SMTP_PORT, ABOVO_SENDER_EMAIL)
 
 ## URL Patterns
 
