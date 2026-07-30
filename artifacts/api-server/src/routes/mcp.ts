@@ -69,6 +69,11 @@ export function createMcpServer() {
         host: smtpHost,
         port: smtpPort,
         secure: smtpPort === 465,
+        // Refuse to send credentials over an unencrypted connection. On 587
+        // nodemailer upgrades via STARTTLS opportunistically; without this
+        // flag a network attacker who strips the server's upgrade offer gets
+        // the SMTP password in the clear. Harmless when implicit TLS is on.
+        requireTLS: true,
         auth: {
           user: smtpUser,
           pass: smtpPass,
