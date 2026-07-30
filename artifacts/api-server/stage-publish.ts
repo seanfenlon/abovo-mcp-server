@@ -61,21 +61,38 @@ async function stage(): Promise<void> {
     );
     process.exit(1);
   }
+  // The registry-type key has been spelled snake_case (schema 2025-07-09) and
+  // camelCase (2025-09-16 and later). Accept both, so migrating the schema
+  // version of .mcp/server.json can never turn this guard into a silent no-op.
   const npmPackages = (mcpManifest.packages ?? []).filter(
-    (p: { registry_type?: string }) => p.registry_type === "npm",
+    (p: { registry_type?: string; registryType?: string }) =>
+      (p.registryType ?? p.registry_type) === "npm",
   );
-  if (npmPackages.length !== 1) {
+  // Zero is legitimate: the canonical distribution channel is the .mcpb bundle
+  // attached to a GitHub release (see stage-mcpb.ts), which needs no npm
+  // registry account. The tarball this script produces is still useful — it is
+  // attached to the same release so `npm install -g <asset URL>` works — so a
+  // missing npm entry is not an error. More than one is always a mistake.
+  if (npmPackages.length > 1) {
     console.error(
-      `ERROR: .mcp/server.json must list exactly one npm package entry, found ${npmPackages.length}.`,
+      `ERROR: .mcp/server.json lists ${npmPackages.length} npm package entries; at most one is allowed.`,
     );
     process.exit(1);
   }
-  if (npmPackages[0].identifier !== devPkg.name) {
+  if (npmPackages.length === 1 && npmPackages[0].identifier !== devPkg.name) {
     console.error(
       `ERROR: .mcp/server.json's npm package identifier (${npmPackages[0].identifier}) ` +
         `does not match the package being staged (${devPkg.name}).`,
     );
     process.exit(1);
+  }
+  if (npmPackages.length === 0) {
+    console.log(
+      "Note: .mcp/server.json declares no npm package, so the public registry will " +
+        "not advertise one. This tarball is for direct install from a release asset:\n" +
+        "  npm install -g https://github.com/seanfenlon/abovo-mcp-server/releases/download/" +
+        `v${devPkg.version}/seanfenlon-abovo-mcp-server-${devPkg.version}.tgz`,
+    );
   }
 
   await rm(stageDir, { recursive: true, force: true });
