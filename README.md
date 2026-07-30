@@ -57,24 +57,35 @@ Returns information about ABOVO.co capabilities, URL formats, groups, or use cas
 
 ---
 
-## Installation & Usage (npm, local stdio)
+## Installation & Usage (local stdio)
 
-This MCP server is distributed as an npm package and runs locally over **stdio** — there is no hosted or remote endpoint. Install it globally:
+This server runs locally over **stdio** — there is no hosted or remote endpoint. Both installation methods below download from this repository's [Releases](https://github.com/seanfenlon/abovo-mcp-server/releases) page. Neither one requires an account or a signup anywhere.
+
+### Option 1 — Claude Desktop bundle (recommended)
+
+Download **`abovo-mcp-server-1.1.0.mcpb`** from the [latest release](https://github.com/seanfenlon/abovo-mcp-server/releases/latest) and double-click it.
+
+Claude Desktop opens an install dialog that asks for your email address and your password (or, for Gmail, an [App Password](https://support.google.com/accounts/answer/185833)). The password is handed to your operating system's credential store — macOS Keychain, Windows Credential Manager, or the Linux Secret Service — and is never written into a configuration file in plain text.
+
+There is nothing else to configure and no dependency install step: the bundle carries a single self-contained Node build.
+
+### Option 2 — command line, straight from the release asset
+
+For any MCP client you configure by hand, install the tarball attached to the same release:
 
 ```bash
-npm install -g @seanfenlon/abovo-mcp-server
+npm install -g https://github.com/seanfenlon/abovo-mcp-server/releases/download/v1.1.0/seanfenlon-abovo-mcp-server-1.1.0.tgz
 ```
 
-A global install exposes the `abovo-mcp-server` command (a stdio MCP server). Configure your MCP client to launch it over stdio:
+This is a plain URL install — npm fetches the file over HTTPS and never contacts the npm registry, so no npm account or login is involved. It exposes the `abovo-mcp-server` command, a stdio MCP server:
 
-### Claude Desktop (`claude_desktop_config.json`)
+#### Claude Desktop (`claude_desktop_config.json`)
 
 ```json
 {
   "mcpServers": {
     "abovo": {
-      "command": "npx",
-      "args": ["-y", "@seanfenlon/abovo-mcp-server"],
+      "command": "abovo-mcp-server",
       "env": {
         "ABOVO_SMTP_USER": "you@example.com",
         "ABOVO_SMTP_PASS": "your-app-password"
@@ -84,7 +95,9 @@ A global install exposes the `abovo-mcp-server` command (a stdio MCP server). Co
 }
 ```
 
-**Environment variables:**
+> **If the client reports that the command was not found,** it is not inheriting your shell's `PATH` — a common situation for GUI applications on macOS. Run `which abovo-mcp-server` (`where abovo-mcp-server` on Windows) and put that absolute path in `"command"` instead.
+
+**Environment variables** — the bundle installer collects these for you through its dialog; set them yourself only for the command-line install:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -106,7 +119,7 @@ It records **coarse metadata only**: the event name, a timestamp, the server ver
 
 Where the file goes:
 
-- **Local stdio install (the npm package):** the operating system's temporary directory (`abovo-mcp-telemetry.jsonl`).
+- **Local stdio install (either the bundle or the tarball):** the operating system's temporary directory (`abovo-mcp-telemetry.jsonl`).
 - **Otherwise:** a `logs/` folder relative to the working directory.
 
 You can point it elsewhere with the `ABOVO_TELEMETRY_FILE` environment variable, or silence it completely by setting `ABOVO_TELEMETRY_DISABLED` to `1`.
@@ -133,6 +146,6 @@ The `publish_to_web` MCP tool is **experimental**. Current known limitations:
 ## Links
 
 - Website: [abovo.co](https://www.abovo.co)
-- npm: [@seanfenlon/abovo-mcp-server](https://www.npmjs.com/package/@seanfenlon/abovo-mcp-server)
+- Downloads: [Releases](https://github.com/seanfenlon/abovo-mcp-server/releases)
 - MCP Registry: [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io)
 - Help: [abovo.co/home/help](https://www.abovo.co/home/help)
