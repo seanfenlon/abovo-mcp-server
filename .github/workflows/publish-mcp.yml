@@ -1,0 +1,83 @@
+# Publishes .mcp/server.json to the official MCP Registry.
+#
+# Authentication is GitHub Actions OIDC. There is no PAT, no repository secret,
+# and no npm account anywhere in this workflow. The registry exchanges the
+# short-lived OIDC token minted by `id-token: write` for a registry JWT, and
+# grants publish rights to `io.github.<repository_owner>/*` — i.e.
+# `io.github.seanfenlon/*` — straight from the token's `repository_owner` claim.
+#
+# Run it manually from the Actions tab, or let it fire automatically on a v* tag.
+
+name: Publish to MCP Registry
+
+on:
+  workflow_dispatch:
+    inputs:
+      purge_stale_v1:
+        description: "Also hide the stale 1.0.0 entry (the dead abovo.replit.app remote) from public listings"
+        type: boolean
+        default: true
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # mints the OIDC token — this is the entire auth story
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install mcp-publisher
+        run: |
+          set -euo pipefail
+          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+          ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_${OS}_${ARCH}.tar.gz" \
+            | tar xz mcp-publisher
+          chmod +x mcp-publisher
+
+      - name: Verify the release asset still matches fileSha256
+        run: |
+          set -euo pipefail
+          URL=$(jq -r '.packages[0].identifier' .mcp/server.json)
+          WANT=$(jq -r '.packages[0].fileSha256' .mcp/server.json)
+          curl -fsSL "$URL" -o asset.mcpb
+          GOT=$(sha256sum asset.mcpb | cut -d' ' -f1)
+          echo "expected: $WANT"
+          echo "actual:   $GOT"
+          test "$WANT" = "$GOT"
+          rm -f asset.mcpb
+
+      - name: Validate server.json
+        run: ./mcp-publisher validate .mcp/server.json
+
+      - name: Authenticate via GitHub Actions OIDC
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to the registry
+        run: ./mcp-publisher publish .mcp/server.json
+
+      - name: Hide the stale 1.0.0 entry
+        if: github.event_name == 'workflow_dispatch' && inputs.purge_stale_v1
+        run: |
+          ./mcp-publisher status --status deleted \
+            --message "Superseded by 1.1.0. The abovo.replit.app remote endpoint is retired; use the signed .mcpb from the v1.1.0 GitHub release." \
+            io.github.seanfenlon/abovo-mcp-server 1.0.0
+
+      - name: Verify what the registry actually serves now
+        run: |
+          set -euo pipefail
+          curl -fsS 'https://registry.modelcontextprotocol.io/v0/servers?search=io.github.seanfenlon/abovo-mcp-server' -o live.json
+          jq . live.json
+          jq -e '.servers[0].server.version == "1.1.0"' live.json > /dev/null
+          jq -e '.servers[0].server | has("remotes") | not'  live.json > /dev/null
+          jq -e '.servers[0].server.packages[0].registryType == "mcpb"' live.json > /dev/null
+          echo "OK: version 1.1.0, no remotes block, mcpb package."
+
+      - name: Always log out
+        if: always()
+        run: ./mcp-publisher logout || true
