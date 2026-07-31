@@ -1,0 +1,10 @@
+# abovo.replit.app — ABOVO.co developer host
+#
+# Machine-readable descriptions of this service, for AI agents and crawlers:
+#   /llms.txt
+#   /.well-known/ai-plugin.json
+#
+# Canonical website: https://www.abovo.co
+
+User-agent: *
+Allow: /
