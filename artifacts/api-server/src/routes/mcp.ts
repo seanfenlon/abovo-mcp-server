@@ -21,7 +21,22 @@ export function createMcpServer() {
       subject: z.string().describe("Subject line / title of the web page"),
       body: z.string().describe("Content to publish. Can be plain text or HTML."),
       format: z.enum(["text", "html"]).default("html").describe("Content format"),
-      group: z.string().optional().describe("Group name. If provided, posts to [group]@abovo.co instead"),
+      // The group name is interpolated into an email address (`${group}@abovo.co`)
+      // and nodemailer parses that string as an address LIST, so an unconstrained
+      // value is recipient injection: group="attacker@example.com, jazz" yields two
+      // envelope recipients, one of them arbitrary, sent from the operator's own
+      // mailbox. Constrain it to a DNS label, which is what the product requires
+      // anyway — group pages are served at https://{group}.abovo.co.
+      group: z
+        .string()
+        .regex(
+          /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/,
+          "Group name must be a single DNS label: letters, digits and hyphens only, not starting or ending with a hyphen, 63 characters maximum. It becomes both an email address and a subdomain.",
+        )
+        .optional()
+        .describe(
+          "Group name. If provided, posts to [group]@abovo.co instead. Letters, digits and hyphens only.",
+        ),
     },
     {
       title: "Publish to ABOVO.co",
@@ -41,6 +56,10 @@ export function createMcpServer() {
       if (!smtpUser || !smtpPass) {
         logEvent("publish_failure", { format, target, reason: "smtp_not_configured" });
         return {
+          // Nothing was published. The send-failure path below already reports
+          // isError; this path must match, or a client that branches on isError
+          // reads "credentials not configured" as a successful publish.
+          isError: true,
           content: [
             {
               type: "text" as const,
