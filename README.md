@@ -63,7 +63,7 @@ This server runs locally over **stdio** — there is no hosted or remote endpoin
 
 ### Option 1 — Claude Desktop bundle (recommended)
 
-Download **`abovo-mcp-server-1.1.0.mcpb`** from the [latest release](https://github.com/seanfenlon/abovo-mcp-server/releases/latest) and double-click it.
+Download **`abovo-mcp-server-1.1.1.mcpb`** from the [latest release](https://github.com/seanfenlon/abovo-mcp-server/releases/latest) and double-click it.
 
 Claude Desktop opens an install dialog that asks for your email address and your password (or, for Gmail, an [App Password](https://support.google.com/accounts/answer/185833)). The password is handed to your operating system's credential store — macOS Keychain, Windows Credential Manager, or the Linux Secret Service — and is never written into a configuration file in plain text.
 
@@ -74,7 +74,7 @@ There is nothing else to configure and no dependency install step: the bundle ca
 For any MCP client you configure by hand, install the tarball attached to the same release:
 
 ```bash
-npm install -g https://github.com/seanfenlon/abovo-mcp-server/releases/download/v1.1.0/seanfenlon-abovo-mcp-server-1.1.0.tgz
+npm install -g https://github.com/seanfenlon/abovo-mcp-server/releases/download/v1.1.1/seanfenlon-abovo-mcp-server-1.1.1.tgz
 ```
 
 This is a plain URL install — npm fetches the file over HTTPS and never contacts the npm registry, so no npm account or login is involved. It exposes the `abovo-mcp-server` command, a stdio MCP server:

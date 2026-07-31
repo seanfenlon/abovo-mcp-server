@@ -3,7 +3,7 @@
   "name": "io.github.seanfenlon/abovo-mcp-server",
   "title": "ABOVO.co — Email-to-Web Publishing",
   "description": "Publish content to the web by emailing POST@abovo.co. No API key, no signup. SMTP is the API.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "websiteUrl": "https://www.abovo.co",
   "repository": {
     "url": "https://github.com/seanfenlon/abovo-mcp-server",
@@ -12,9 +12,9 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/seanfenlon/abovo-mcp-server/releases/download/v1.1.0/abovo-mcp-server-1.1.0.mcpb",
-      "version": "1.1.0",
-      "fileSha256": "7a6d672ea0214417e7a2faac2a09e12f0914e1e1f49a1f6f7a8f4692c0729cb9",
+      "identifier": "https://github.com/seanfenlon/abovo-mcp-server/releases/download/v1.1.1/abovo-mcp-server-1.1.1.mcpb",
+      "version": "1.1.1",
+      "fileSha256": "06865bc4d1e837dbc15e5c03ea242364c1e27bcb61f230c8d9ad547c5a03863c",
       "transport": {
         "type": "stdio"
       },
