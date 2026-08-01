@@ -347,7 +347,14 @@ jobs:
           test "$WANT" = "$GOT"
 
           # The tarball is a real npm package or the README's install line lies.
-          tar tzf /tmp/served.tgz | grep -q 'package/dist/stdio.cjs'
+          # `tar ... | grep -q` looks right and is a trap: grep -q exits on its
+          # first match and closes the pipe, tar dies writing the rest of the
+          # listing to EPIPE, and `pipefail` turns a check that PASSED into a
+          # failed step. Cutting v1.1.1 hit exactly this — the release was
+          # correct and the workflow reported failure. List to a file, then
+          # grep the file, so nothing can close the producer early.
+          tar tzf /tmp/served.tgz > /tmp/served.tgz.list
+          grep -q 'package/dist/stdio.cjs' /tmp/served.tgz.list
           echo "OK: both assets are served at the advertised URLs and the .mcpb matches its declared hash."
 
       - name: Summary

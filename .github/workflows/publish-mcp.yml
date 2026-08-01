@@ -132,10 +132,26 @@ jobs:
           set -euo pipefail
           curl -fsS 'https://registry.modelcontextprotocol.io/v0/servers?search=io.github.seanfenlon/abovo-mcp-server' -o live.json
           jq . live.json
-          jq -e --arg want "$WANT" '.servers[0].server.version == $want' live.json > /dev/null
-          jq -e '.servers[0].server | has("remotes") | not'  live.json > /dev/null
-          jq -e '.servers[0].server.packages[0].registryType == "mcpb"' live.json > /dev/null
-          echo "OK: version $WANT, no remotes block, mcpb package."
+
+          # The search endpoint returns EVERY version ever published under this
+          # name, oldest first — so `.servers[0]` is the OLDEST record, not the
+          # one clients resolve. It only looked correct while exactly one
+          # version existed. Publishing 1.1.1 alongside 1.1.0 is how that was
+          # found: the publish succeeded and this step failed anyway, comparing
+          # the new version against the old record. Assert against the record
+          # the registry itself marks isLatest, and assert there is exactly one.
+          jq -e '[.servers[]
+                  | select(._meta["io.modelcontextprotocol.registry/official"].isLatest == true)]
+                 | length == 1' live.json > /dev/null
+          jq '.servers[]
+              | select(._meta["io.modelcontextprotocol.registry/official"].isLatest == true)' \
+             live.json > latest.json
+
+          jq -e --arg want "$WANT" '.server.version == $want' latest.json > /dev/null
+          jq -e '.server | has("remotes") | not' latest.json > /dev/null
+          jq -e '.server.packages[0].registryType == "mcpb"' latest.json > /dev/null
+          jq -e '._meta["io.modelcontextprotocol.registry/official"].status == "active"' latest.json > /dev/null
+          echo "OK: the registry's latest record is $WANT — active, no remotes block, mcpb package."
 
       - name: Always log out
         if: always()
