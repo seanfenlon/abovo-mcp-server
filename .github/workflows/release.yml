@@ -1,0 +1,399 @@
+# Cuts a versioned GitHub release, then republishes the MCP Registry entry.
+#
+# This is the whole distribution chain in one button. Before this existed the
+# chain was: build locally, read a 64-character SHA-256 off a terminal, retype
+# it into .mcp/server.json, create a release by hand, attach two assets under
+# exactly the right filenames, and only then run the publish workflow. Every one
+# of those steps is a place where a single wrong character silently breaks every
+# install — MCP clients refuse to install on a hash mismatch, and the manifest's
+# `identifier` is a literal URL, so a renamed asset is a 404.
+#
+# WHAT THIS DOES NOT DO: it does not choose the version. Run
+#   node artifacts/api-server/bump-version.mjs <semver>
+# on a branch, review the diff, merge it, and then run this. The version is a
+# human decision recorded in a reviewable commit, not a value typed into a form.
+#
+# Start with "Dry run" ticked. That runs every build, test and verification step
+# and stops before anything irreversible — no tag, no release, no registry
+# write. Nothing in a dry run can be observed from outside the repository.
+
+name: Cut a release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run — build, smoke-test and verify everything, but create nothing and publish nothing"
+        type: boolean
+        default: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, prove, and release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the tag and the release; commit the refreshed manifest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # release notes diff against the previous tag
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # -- Gate 1: the version must be one number, written in every place ----
+      #
+      # The version appears in six literal strings across four files. Three of
+      # them break different things when stale: SERVER_VERSION is what MCP
+      # clients see in the handshake, package.json is what the build reads, and
+      # the manifest's identifier is a download URL. Checking them against each
+      # other here means a partial bump cannot reach a release.
+      - name: Verify every version string agrees
+        id: version
+        run: |
+          set -euo pipefail
+          PKG=$(jq -r .version artifacts/api-server/package.json)
+          MCP=$(jq -r .version .mcp/server.json)
+          PKGVER=$(jq -r '.packages[0].version' .mcp/server.json)
+          SRC=$(sed -n 's/.*SERVER_VERSION = "\([^"]*\)".*/\1/p' artifacts/api-server/src/lib/version.ts)
+
+          echo "artifacts/api-server/package.json        $PKG"
+          echo "artifacts/api-server/src/lib/version.ts  $SRC"
+          echo ".mcp/server.json (server)                $MCP"
+          echo ".mcp/server.json (package entry)         $PKGVER"
+
+          if [ "$PKG" != "$MCP" ] || [ "$PKG" != "$SRC" ] || [ "$PKG" != "$PKGVER" ]; then
+            echo "::error::Version strings disagree. Run: node artifacts/api-server/bump-version.mjs <semver>"
+            exit 1
+          fi
+
+          IDENT=$(jq -r '.packages[0].identifier' .mcp/server.json)
+          case "$IDENT" in
+            *"/v$PKG/"*"$PKG.mcpb") ;;
+            *)
+              echo "::error::The mcpb identifier does not point at v$PKG: $IDENT"
+              exit 1
+              ;;
+          esac
+
+          echo "version=$PKG" >> "$GITHUB_OUTPUT"
+          echo "tag=v$PKG"    >> "$GITHUB_OUTPUT"
+
+      # -- Gate 2: this version must not already exist -----------------------
+      #
+      # A release tag is effectively immutable: re-releasing a number that has
+      # already shipped means two different artifacts answer to one identifier,
+      # and anyone who already installed the first one has no way to tell. The
+      # realistic mistake is running this twice having forgotten to bump.
+      - name: Verify this version has not already been released
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists. Bump the version first: node artifacts/api-server/bump-version.mjs <semver>"
+            exit 1
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::A GitHub release named $TAG already exists."
+            exit 1
+          fi
+          echo "OK: $TAG is unused."
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Build
+        run: pnpm --filter @seanfenlon/abovo-mcp-server run build
+
+      # -- Gate 3: prove the thing actually runs -----------------------------
+      #
+      # Reading the source is how 1.1.0 shipped with a null annotations block,
+      # documentation that contradicted the tool's own input schema, and a
+      # `group` parameter that accepted an address list — recipient injection
+      # through the operator's own mailbox. All three were found by starting the
+      # bundle and talking to it. smoke-stdio.mjs does that mechanically, and it
+      # is verified to fail against the pre-fix code, so it is a real gate and
+      # not a formality. It runs with no SMTP credentials, so it cannot send.
+      - name: Smoke-test the build output over stdio
+        run: node artifacts/api-server/smoke-stdio.mjs
+
+      - name: Stage the .mcpb bundle and refresh the manifest hash
+        run: |
+          set -euo pipefail
+          cd artifacts/api-server
+          npx tsx ./stage-mcpb.ts --update-manifest
+
+      - name: Stage and pack the .tgz
+        run: |
+          set -euo pipefail
+          cd artifacts/api-server
+          npx tsx ./stage-publish.ts
+          cd publish-staging
+          npm pack
+
+      - name: Locate the artifacts
+        id: artifacts
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          MCPB="artifacts/api-server/mcpb-staging/abovo-mcp-server-${VERSION}.mcpb"
+          TGZ="artifacts/api-server/publish-staging/seanfenlon-abovo-mcp-server-${VERSION}.tgz"
+          test -f "$MCPB" || { echo "::error::missing $MCPB"; exit 1; }
+          test -f "$TGZ"  || { echo "::error::missing $TGZ";  exit 1; }
+          SHA=$(sha256sum "$MCPB" | cut -d' ' -f1)
+          # The manifest was just rewritten from this same artifact, so a
+          # mismatch here would mean the rewrite itself failed.
+          WANT=$(jq -r '.packages[0].fileSha256' .mcp/server.json)
+          test "$SHA" = "$WANT" || { echo "::error::manifest sha256 $WANT != built $SHA"; exit 1; }
+          {
+            echo "mcpb=$MCPB"
+            echo "tgz=$TGZ"
+            echo "sha256=$SHA"
+            echo "bytes=$(stat -c%s "$MCPB")"
+          } >> "$GITHUB_OUTPUT"
+
+      # -- Gate 4: prove the SHIPPED artifacts run, not just the build --------
+      #
+      # The build output and the packaged artifact are different files. The
+      # .mcpb is a zip assembled by a staging script; the .tgz is packed from a
+      # regenerated manifest with no dependencies at all. Either could be
+      # assembled wrong while dist/stdio.cjs is perfect. These two steps run the
+      # same handshake against what a user would actually receive.
+      - name: Smoke-test the packaged .mcpb
+        env:
+          MCPB: ${{ steps.artifacts.outputs.mcpb }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mcpb-check && mkdir -p /tmp/mcpb-check
+          unzip -q "$MCPB" -d /tmp/mcpb-check
+          test -f /tmp/mcpb-check/manifest.json
+          ENTRY=$(jq -r .server.entry_point /tmp/mcpb-check/manifest.json)
+          node artifacts/api-server/smoke-stdio.mjs "/tmp/mcpb-check/$ENTRY"
+
+      - name: Smoke-test the packaged .tgz, installed exactly as the README says
+        env:
+          TGZ: ${{ steps.artifacts.outputs.tgz }}
+        run: |
+          set -euo pipefail
+          npm install -g "$TGZ"
+          BIN=$(command -v abovo-mcp-server)
+          echo "installed at $BIN"
+          node artifacts/api-server/smoke-stdio.mjs "$BIN"
+          npm uninstall -g @seanfenlon/abovo-mcp-server
+
+      # -- Everything above is read-only. Everything below is not. -----------
+
+      - name: Dry run stops here
+        if: inputs.dry_run
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA: ${{ steps.artifacts.outputs.sha256 }}
+          BYTES: ${{ steps.artifacts.outputs.bytes }}
+        run: |
+          {
+            echo "## Dry run passed — nothing was created"
+            echo ""
+            echo "Version \`$VERSION\` built, packaged, and proven to run over stdio."
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| .mcpb sha256 | \`$SHA\` |"
+            echo "| .mcpb size | $BYTES bytes |"
+            echo ""
+            echo "No tag, no release, and no registry write happened. Re-run with"
+            echo "**Dry run** unticked to cut the release."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The manifest's fileSha256 describes an artifact that did not exist when
+      # the version was bumped, so it is stale on the branch by design and gets
+      # its real value here. Committing it back BEFORE tagging means the tag
+      # points at a commit whose manifest is true. If this push is refused, the
+      # run stops before anything public is created.
+      - name: Commit the refreshed manifest
+        id: commit
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- .mcp/server.json; then
+            echo "Manifest already matched the built artifact; nothing to commit."
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .mcp/server.json
+            git commit -m "chore(release): record the sha256 of the artifact being released" \
+                       -m "Written mechanically by the release workflow from the artifact it just built. Transcribing this hash by hand is the one step where a single wrong character silently breaks every install."
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+          # The release must be tagged at THIS commit, not at the SHA the run
+          # started from — otherwise the tag points at a tree whose manifest
+          # still carries the previous release's hash, and the registry publish
+          # (which checks out the tag) would publish that stale value.
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Write the release notes
+        if: ${{ !inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          SHA: ${{ steps.artifacts.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          PREV=$(git tag --list 'v*' --sort=-v:refname | head -1 || true)
+          {
+            echo "## Install"
+            echo ""
+            echo "**Claude Desktop and other MCPB hosts** — download"
+            echo "\`abovo-mcp-server-${VERSION}.mcpb\` below and double-click it."
+            echo ""
+            echo "**Command line** — no npm account or npmjs.com involved:"
+            echo ""
+            echo '```'
+            echo "npm install -g https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/seanfenlon-abovo-mcp-server-${VERSION}.tgz"
+            echo '```'
+            echo ""
+            echo "The server runs locally over stdio and sends through your own mailbox."
+            echo "There is no hosted endpoint."
+            echo ""
+            echo "\`\`\`"
+            echo "sha256(abovo-mcp-server-${VERSION}.mcpb) = ${SHA}"
+            echo "\`\`\`"
+            echo ""
+            echo "This hash is also recorded in \`.mcp/server.json\` and checked by MCP"
+            echo "clients at install time, and the release workflow re-downloads the"
+            echo "uploaded asset to confirm the served file still matches it."
+            echo ""
+            echo "## Changes"
+            echo ""
+            if [ -n "$PREV" ]; then
+              git log --no-merges --pretty='- %s' "${PREV}..HEAD"
+            else
+              git log --no-merges --pretty='- %s' -20
+            fi
+          } > /tmp/release-notes.md
+          cat /tmp/release-notes.md
+
+      - name: Create the release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          MCPB: ${{ steps.artifacts.outputs.mcpb }}
+          TGZ: ${{ steps.artifacts.outputs.tgz }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" "$MCPB" "$TGZ" \
+            --title "v${VERSION}" \
+            --notes-file /tmp/release-notes.md \
+            --target "${{ steps.commit.outputs.sha }}"
+
+      # -- Gate 5: verify the file that is actually being served -------------
+      #
+      # The only hash that counts is the one taken from the uploaded asset at
+      # the exact URL the registry manifest advertises. A correct local build
+      # attached under a slightly wrong name is a 404 for every install, and
+      # that is invisible until someone tries.
+      - name: Verify the served assets
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          WANT: ${{ steps.artifacts.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          IDENT=$(jq -r '.packages[0].identifier' .mcp/server.json)
+          TGZ_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/seanfenlon-abovo-mcp-server-${VERSION}.tgz"
+
+          fetch () {
+            for attempt in 1 2 3 4 5 6; do
+              if curl -fsSL "$1" -o "$2"; then return 0; fi
+              echo "attempt $attempt: $1 not served yet, waiting..."
+              sleep 10
+            done
+            echo "::error::$1 was never served"
+            return 1
+          }
+
+          fetch "$IDENT"   /tmp/served.mcpb
+          fetch "$TGZ_URL" /tmp/served.tgz
+
+          GOT=$(sha256sum /tmp/served.mcpb | cut -d' ' -f1)
+          echo "manifest identifier: $IDENT"
+          echo "declared sha256:     $WANT"
+          echo "served sha256:       $GOT"
+          test "$WANT" = "$GOT"
+
+          # The tarball is a real npm package or the README's install line lies.
+          tar tzf /tmp/served.tgz | grep -q 'package/dist/stdio.cjs'
+          echo "OK: both assets are served at the advertised URLs and the .mcpb matches its declared hash."
+
+      - name: Summary
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          SHA: ${{ steps.artifacts.outputs.sha256 }}
+          BYTES: ${{ steps.artifacts.outputs.bytes }}
+        run: |
+          {
+            echo "## Released ${TAG}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Release | https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG} |"
+            echo "| .mcpb sha256 | \`${SHA}\` |"
+            echo "| .mcpb size | ${BYTES} bytes |"
+            echo ""
+            echo "Both assets were re-downloaded from their public URLs and verified."
+            echo "The registry publish runs next."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Republishes .mcp/server.json to the official MCP Registry, reusing the
+  # existing workflow rather than duplicating its OIDC login. Skipped on a dry
+  # run.
+  #
+  # It checks out the TAG, not the SHA this run started from, so it publishes
+  # the manifest that carries the hash of the artifact that was actually just
+  # released.
+  #
+  # The tag pushed above cannot trigger anything by itself: GitHub does not
+  # start workflow runs from events raised by GITHUB_TOKEN. This explicit call
+  # is the only publish path, so there is no chance of a double publish.
+  #
+  # If this job ever fails at the OIDC login while the release job succeeded,
+  # the release itself is fine and complete — just run "Publish to MCP Registry"
+  # on its own from the Actions tab. It is independently dispatchable for
+  # exactly that reason.
+  publish:
+    name: Publish to the MCP Registry
+    needs: release
+    if: ${{ !inputs.dry_run }}
+    uses: ./.github/workflows/publish-mcp.yml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      ref: ${{ needs.release.outputs.tag }}
+      purge_stale_v1: false

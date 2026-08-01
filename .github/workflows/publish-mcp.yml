@@ -6,19 +6,36 @@
 # grants publish rights to `io.github.<repository_owner>/*` — i.e.
 # `io.github.seanfenlon/*` — straight from the token's `repository_owner` claim.
 #
-# Run it manually from the Actions tab, or let it fire automatically on a v* tag.
+# Normally you do not run this by hand: "Cut a release" calls it as its final
+# step, against the tag it just created. Running it standalone from the Actions
+# tab republishes whatever manifest is on the checked-out ref, which is the
+# right thing to do if the chained call ever fails after the release was already
+# created, or if only manifest metadata changed and no new artifact is needed.
+#
+# There is deliberately NO `push: tags` trigger any more. Tag pushes and release
+# cuts are both owned by "Cut a release" now, and a second automatic path to an
+# irreversible registry write is exactly the kind of thing that publishes twice
+# by surprise.
 
 name: Publish to MCP Registry
 
 on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to publish from. Defaults to the triggering SHA."
+        type: string
+        default: ""
+      purge_stale_v1:
+        description: "Also hide the stale 1.0.0 entry"
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       purge_stale_v1:
-        description: "Also hide the stale 1.0.0 entry (the dead abovo.replit.app remote) from public listings"
+        description: "Also hide the stale 1.0.0 entry (the dead abovo.replit.app remote). Already done on 2026-07-31 — leave this off unless it somehow comes back."
         type: boolean
-        default: true
-  push:
-    tags: ["v*"]
+        default: false
 
 jobs:
   publish:
@@ -30,6 +47,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # When called by "Cut a release" this is the tag that was just
+          # created, whose manifest carries the hash of the artifact that was
+          # actually released. The SHA the run started from predates the commit
+          # that recorded that hash, so checking it out would publish a stale
+          # one.
+          ref: ${{ inputs.ref || github.sha }}
 
       - name: Install mcp-publisher
         run: |
@@ -39,6 +63,34 @@ jobs:
           curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_${OS}_${ARCH}.tar.gz" \
             | tar xz mcp-publisher
           chmod +x mcp-publisher
+
+      # Read the version out of the manifest rather than hardcoding it. The
+      # previous revision of this file asserted the literal string "1.1.0" in
+      # its verification step, which would have turned the run red immediately
+      # after a successful 1.1.1 publish — the most confusing possible failure,
+      # because the work would already have been done.
+      - name: Read the manifest
+        id: manifest
+        run: |
+          set -euo pipefail
+          VERSION=$(jq -r .version .mcp/server.json)
+          PKGVER=$(jq -r '.packages[0].version' .mcp/server.json)
+          IDENT=$(jq -r '.packages[0].identifier' .mcp/server.json)
+
+          echo "version:    $VERSION"
+          echo "identifier: $IDENT"
+
+          # A manifest whose package entry, top-level version, and download URL
+          # disagree describes an artifact that does not exist. Catch it here
+          # rather than publishing a listing that 404s for everyone who installs.
+          test "$VERSION" = "$PKGVER" || {
+            echo "::error::server version $VERSION != package entry version $PKGVER"; exit 1; }
+          case "$IDENT" in
+            *"/v$VERSION/"*"$VERSION.mcpb") ;;
+            *) echo "::error::identifier does not point at v$VERSION: $IDENT"; exit 1 ;;
+          esac
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Verify the release asset still matches fileSha256
         run: |
@@ -61,22 +113,29 @@ jobs:
       - name: Publish to the registry
         run: ./mcp-publisher publish .mcp/server.json
 
+      # The 1.0.0 entry — and with it the dead abovo.replit.app/mcp remote — was
+      # hidden on 2026-07-31, and the registry has served a single active entry
+      # with no remotes block ever since. This step stays available in case it
+      # ever reappears, but it defaults off so a routine release cannot re-issue
+      # a delete against a version that is already gone.
       - name: Hide the stale 1.0.0 entry
-        if: github.event_name == 'workflow_dispatch' && inputs.purge_stale_v1
+        if: inputs.purge_stale_v1
         run: |
           ./mcp-publisher status --status deleted \
-            --message "Superseded by 1.1.0. The abovo.replit.app remote endpoint is retired; use the signed .mcpb from the v1.1.0 GitHub release." \
+            --message "Superseded. The abovo.replit.app remote endpoint is retired; use the signed .mcpb from the latest GitHub release." \
             io.github.seanfenlon/abovo-mcp-server 1.0.0
 
       - name: Verify what the registry actually serves now
+        env:
+          WANT: ${{ steps.manifest.outputs.version }}
         run: |
           set -euo pipefail
           curl -fsS 'https://registry.modelcontextprotocol.io/v0/servers?search=io.github.seanfenlon/abovo-mcp-server' -o live.json
           jq . live.json
-          jq -e '.servers[0].server.version == "1.1.0"' live.json > /dev/null
+          jq -e --arg want "$WANT" '.servers[0].server.version == $want' live.json > /dev/null
           jq -e '.servers[0].server | has("remotes") | not'  live.json > /dev/null
           jq -e '.servers[0].server.packages[0].registryType == "mcpb"' live.json > /dev/null
-          echo "OK: version 1.1.0, no remotes block, mcpb package."
+          echo "OK: version $WANT, no remotes block, mcpb package."
 
       - name: Always log out
         if: always()
