@@ -11,13 +11,11 @@
 // dist/stdio.cjs is a fully self-contained esbuild bundle, so the archive needs
 // no node_modules and no package.json.
 //
-// IMPORTANT — every optional user_config key MUST declare a `default`.
-// The host substitutes ${user_config.<key>} only for keys present in the merged
-// config map, which is built from manifest defaults plus user-supplied values.
-// An optional key with no default and no user value is left in the environment
-// as the LITERAL string "${user_config.<key>}", which is truthy and therefore
-// defeats the server's own `||` fallbacks. Empty-string defaults keep those
-// fallbacks working.
+// The bundle is prepare-only. It has no user_config and no SMTP credentials:
+// prepare_abovo_post returns a mailto and sends nothing. The already-published
+// 1.1.1 .mcpb is a different artifact and stays referenced from .mcp/server.json
+// until a later release cuts a new bundle. Running this script while that
+// package entry is still 1.1.1 exits before writing anything.
 //
 // Usage: tsx ./build.ts && tsx ./stage-mcpb.ts [--update-manifest]
 //
@@ -71,6 +69,23 @@ async function build(): Promise<void> {
     process.exit(1);
   }
 
+  // 1.2.0 advertises the hosted remote and keeps the already-published 1.1.1
+  // .mcpb byte-for-byte. This script builds a new bundle. It must not overwrite
+  // that pinned package entry, which is what --update-manifest would do.
+  const pinned = (mcpManifest.packages ?? []).find(
+    (p: { registryType?: string; registry_type?: string }) =>
+      (p.registryType ?? p.registry_type) === "mcpb",
+  ) as { version?: string } | undefined;
+  if (pinned?.version && pinned.version !== devPkg.version) {
+    console.error(
+      `ERROR: .mcp/server.json's mcpb package entry is ${pinned.version}, while ` +
+        `the server version is ${devPkg.version}. That split is intentional until ` +
+        "a new bundle is released. This script builds a new bundle and will not " +
+        "overwrite the published package entry.",
+    );
+    process.exit(1);
+  }
+
   // The registry requires "mcp" to appear in the asset URL path. The asset name
   // is derived here rather than typed twice, so the name in the release and the
   // name the manifest advertises cannot drift apart.
@@ -89,9 +104,9 @@ async function build(): Promise<void> {
     display_name: "ABOVO.co — Email-to-Web Publishing",
     version: devPkg.version,
     description:
-      "Publish any content to a permanent public web page by sending an email. No API key, no signup. SMTP is the API.",
+      "Prepares a ready-to-send email that publishes a public web page on ABOVO.co once you send it. Sends nothing. No login.",
     long_description:
-      "ABOVO.co turns email into a publishing API. Send any message to POST@abovo.co and it becomes a permanent public web page; send to [groupname]@abovo.co to post to a group. This extension exposes that capability to Claude as two tools — publish_to_web and get_abovo_info — and runs entirely on your own machine over stdio. It sends through your own mailbox using credentials you supply below; nothing is proxied through a third-party service. Relates to U.S. Patent No. 10,404,634 B2.",
+      "ABOVO.co turns email into a public web page. This extension exposes two tools — prepare_abovo_post and get_abovo_info — and runs entirely on your own machine over stdio. prepare_abovo_post returns To, Subject, Body, and a mailto link. It sends nothing. You send the email from your own email account to POST@abovo.co, or to {name}@abovo.co for a group. Attach files to that email and they appear on the post; code can be inline or a .txt file. The creator's accept-click makes them the group moderator. Every post's confirmation email includes a delete link. Relates to U.S. Patent No. 10,404,634 B2.",
     author: {
       name: "Sean P. Fenlon (Abovo42 Corporation)",
       email: "info@abovo.co",
@@ -110,7 +125,6 @@ async function build(): Promise<void> {
       "model-context-protocol",
       "abovo",
       "email",
-      "smtp",
       "publishing",
       "stdio",
     ],
@@ -120,20 +134,13 @@ async function build(): Promise<void> {
       mcp_config: {
         command: "node",
         args: ["${__dirname}/server/index.cjs"],
-        env: {
-          ABOVO_SMTP_USER: "${user_config.smtp_user}",
-          ABOVO_SMTP_PASS: "${user_config.smtp_pass}",
-          ABOVO_SMTP_HOST: "${user_config.smtp_host}",
-          ABOVO_SMTP_PORT: "${user_config.smtp_port}",
-          ABOVO_SENDER_EMAIL: "${user_config.sender_email}",
-        },
       },
     },
     tools: [
       {
-        name: "publish_to_web",
+        name: "prepare_abovo_post",
         description:
-          "Publish a subject and body to ABOVO.co as a permanent public web page, optionally to a group",
+          "Prepare a ready-to-send email (to, subject, body, mailto). Sends nothing. The user sends it from their own email account.",
       },
       {
         name: "get_abovo_info",
@@ -141,51 +148,6 @@ async function build(): Promise<void> {
           "Return information about ABOVO.co capabilities, URL formats, groups, or use cases",
       },
     ],
-    user_config: {
-      smtp_user: {
-        type: "string",
-        title: "Your email address",
-        description:
-          "The mailbox this extension sends from. Posts are published under this address on ABOVO.co.",
-        required: true,
-      },
-      smtp_pass: {
-        type: "string",
-        title: "Email password or app password",
-        description:
-          "Stored by your operating system's credential store, never written to disk in plain text. For Gmail, create an App Password rather than using your account password.",
-        sensitive: true,
-        required: true,
-      },
-      smtp_host: {
-        type: "string",
-        title: "SMTP host",
-        description:
-          "Leave as-is for Gmail. Change only if you send through a different provider.",
-        default: "smtp.gmail.com",
-        required: false,
-      },
-      smtp_port: {
-        type: "number",
-        title: "SMTP port",
-        description:
-          "587 for STARTTLS (the usual choice) or 465 for implicit TLS.",
-        default: 587,
-        min: 1,
-        max: 65535,
-        required: false,
-      },
-      // Optional, so it MUST carry a default — see the header comment. An empty
-      // string lets the server fall back to the address above.
-      sender_email: {
-        type: "string",
-        title: "From address (optional)",
-        description:
-          "Leave blank to send as the email address above. Set this only if your provider requires a different envelope sender.",
-        default: "",
-        required: false,
-      },
-    },
     compatibility: {
       claude_desktop: ">=0.10.0",
       platforms: ["darwin", "win32", "linux"],

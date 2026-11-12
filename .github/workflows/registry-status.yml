@@ -1,0 +1,90 @@
+# Changes the lifecycle status of ONE already-published version in the official
+# MCP Registry. It publishes nothing and builds nothing.
+#
+# Why a separate workflow: "Publish to MCP Registry" always runs
+# `mcp-publisher publish` first. Registry versions are immutable, so re-running
+# it against the 1.1.1 manifest fails at that step and never reaches a status
+# change. This file does only the status change.
+#
+# Auth is the same GitHub Actions OIDC as publish-mcp.yml: no PAT, no secret.
+# Use "deprecated" (visible with a warning, keeps the audit trail), not
+# "deleted". To undo, run again with status "active" (message must be empty).
+
+name: Change a registry version's status
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to change (example: 1.1.0)"
+        type: string
+        required: true
+      status:
+        description: "New status"
+        type: choice
+        options:
+          - deprecated
+          - active
+        default: deprecated
+      message:
+        description: "Reason shown to clients (leave EMPTY when status is active)"
+        type: string
+        default: "Superseded by 1.1.1, which fixes group-name input validation. Please use the latest version."
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      NAME: io.github.seanfenlon/abovo-mcp-server
+      VERSION: ${{ inputs.version }}
+      STATUS: ${{ inputs.status }}
+      MESSAGE: ${{ inputs.message }}
+    steps:
+      - name: Refuse to touch the latest version
+        run: |
+          set -euo pipefail
+          curl -fsS "https://registry.modelcontextprotocol.io/v0/servers?search=$NAME" -o live.json
+          LATEST=$(jq -r '.servers[] | select(._meta["io.modelcontextprotocol.registry/official"].isLatest == true) | .server.version' live.json)
+          echo "latest: $LATEST   target: $VERSION -> $STATUS"
+          jq -e --arg v "$VERSION" '[.servers[] | select(.server.version == $v)] | length == 1' live.json > /dev/null \
+            || { echo "::error::version $VERSION is not published under $NAME"; exit 1; }
+          if [ "$STATUS" = "deprecated" ] && [ "$VERSION" = "$LATEST" ]; then
+            echo "::error::refusing to deprecate the latest version ($LATEST)"; exit 1
+          fi
+
+      - name: Install mcp-publisher
+        run: |
+          set -euo pipefail
+          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+          ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_${OS}_${ARCH}.tar.gz" | tar xz mcp-publisher
+          chmod +x mcp-publisher
+
+      - name: Authenticate via GitHub Actions OIDC
+        run: ./mcp-publisher login github-oidc
+
+      - name: Change status
+        run: |
+          set -euo pipefail
+          if [ "$STATUS" = "active" ]; then
+            ./mcp-publisher status --status active "$NAME" "$VERSION"
+          else
+            ./mcp-publisher status --status "$STATUS" --message "$MESSAGE" "$NAME" "$VERSION"
+          fi
+
+      - name: Verify
+        run: |
+          set -euo pipefail
+          sleep 5
+          curl -fsS "https://registry.modelcontextprotocol.io/v0/servers?search=$NAME" -o after.json
+          jq -r '.servers[] | "\(.server.version)  status=\(._meta["io.modelcontextprotocol.registry/official"].status)  isLatest=\(._meta["io.modelcontextprotocol.registry/official"].isLatest)"' after.json
+          jq -e --arg v "$VERSION" --arg s "$STATUS" \
+            '[.servers[] | select(.server.version == $v and ._meta["io.modelcontextprotocol.registry/official"].status == $s)] | length == 1' after.json > /dev/null
+          echo "OK: $VERSION is now $STATUS"
+
+      - name: Always log out
+        if: always()
+        run: ./mcp-publisher logout || true

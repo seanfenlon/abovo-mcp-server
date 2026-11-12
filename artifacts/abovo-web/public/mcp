@@ -1,0 +1,12 @@
+{
+  "status": "active",
+  "endpoint": "https://mcp.abovo.co/api/mcp",
+  "message": "ABOVO.co MCP server is instructions-first: its prepare_abovo_post tool sends nothing, it returns a ready-to-send email (to, subject, body, mailto link) that you send from your own email account to POST@abovo.co. No login is ever needed because your email account is your login. Attach files to that email and they appear on the post; code can be inline or a .txt file. Send to {name}@abovo.co for a group; the creator's accept-click makes them moderator. Every post's confirmation email includes a delete link.",
+  "registryName": "io.github.seanfenlon/abovo-mcp-server",
+  "transport": "streamable-http (hosted, stateless, no auth)",
+  "tools": [
+    "prepare_abovo_post",
+    "get_abovo_info"
+  ],
+  "downloads": "https://github.com/seanfenlon/abovo-mcp-server/releases/latest"
+}

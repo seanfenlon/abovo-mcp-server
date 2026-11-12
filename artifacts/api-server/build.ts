@@ -25,7 +25,6 @@ const allowlist = [
   "@modelcontextprotocol/sdk",
   "multer",
   "nanoid",
-  "nodemailer",
   "openai",
   "passport",
   "passport-local",

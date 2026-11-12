@@ -1,37 +1,30 @@
 # ABOVO.co
 
-> The simplest way to publish content to the web. Send an email, get a public URL.
+> Turn any email into a public web page: send it to POST@abovo.co. No login: your email is your login.
 
-ABOVO.co is an email-to-web publishing platform. Any email sent to POST@abovo.co is instantly converted into a public web page. The sender receives a URL back within seconds. No signup, no API key, no authentication required.
+ABOVO.co is an email-to-web publishing platform. Any email sent to POST@abovo.co from a verified sender becomes a public web page, and the sender gets a confirmation email with the page URL and a delete link. There is no account, password, API key, or OAuth: your email account is your login.
 
 US Patent No. 10,404,634.
 
-## API
+## How to publish
 
-ABOVO.co's API is email (SMTP). There is no REST API.
+- Publish: send any email to POST@abovo.co
+- Attachments: attach files to that email; they appear on the post
+- HTML email is rendered
+- Delete: use the delete link in the confirmation email
+- Groups: send to {groupname}@abovo.co. The first email to a new group sends the creator a confirmation; clicking "I accept" activates the group at https://{groupname}.abovo.co and makes the creator its moderator
+- Posts are public
+- Cost: free
 
-- Publish: Send any email to POST@abovo.co → receive a public URL back
-- Groups: Send to [groupname]@abovo.co → post to or create a topic group
-  - New group creation requires confirmation: ABOVO emails the first sender a link; they must click "I accept" to activate the group and become moderator
-  - Group page lives at a subdomain: https://{groupname}.abovo.co (e.g. https://jazz.abovo.co)
-- Attachments: Any file attached is published on the web page
-- HTML: Full HTML rendering supported
-- Cost: Free
-- Auth: None required
+## MCP server
 
-## MCP Server
-
-A Model Context Protocol (MCP) server is available for AI agents. It runs locally over stdio and is distributed as a downloadable bundle attached to a GitHub release — no package-registry account and no signup are involved.
-
+- Endpoint: https://mcp.abovo.co/api/mcp (Streamable HTTP, stateless, no auth, no login)
 - Registry name: io.github.seanfenlon/abovo-mcp-server
-- Downloads: https://github.com/seanfenlon/abovo-mcp-server/releases/latest
-- Claude Desktop: download the .mcpb bundle from that release and open it
-- Any other client: npm install -g <the .tgz asset URL from that same release>
-- Transport: stdio (local; no hosted or remote endpoint)
-- Tools: publish_to_web, get_abovo_info
-- Requires SMTP env vars: ABOVO_SMTP_USER, ABOVO_SMTP_PASS (optional: ABOVO_SMTP_HOST, ABOVO_SMTP_PORT, ABOVO_SENDER_EMAIL)
+- Tools: prepare_abovo_post (returns a ready-to-send email: to, subject, body, mailto; sends nothing), get_abovo_info (reference text)
+- The user sends the prepared email from their own email account to POST@abovo.co or {group}@abovo.co. To include files, attach them to that email.
+- Optional local bundle: https://github.com/seanfenlon/abovo-mcp-server/releases/latest
 
-## URL Patterns
+## URL patterns
 
 - User page: https://www.abovo.co/{sender-email}
 - Post: https://www.abovo.co/{sender-email}/{post-id}
@@ -41,3 +34,5 @@ A Model Context Protocol (MCP) server is available for AI agents. It runs locall
 
 - Website: https://www.abovo.co
 - Help: https://www.abovo.co/home/help
+- Privacy: https://www.abovo.co/Home/Privacy
+- Terms: https://www.abovo.co/Home/Terms

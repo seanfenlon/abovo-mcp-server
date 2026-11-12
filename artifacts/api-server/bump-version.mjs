@@ -1,12 +1,12 @@
 // Rewrites the version in every place it is written by hand.
 //
-// The version currently lives in six literal strings across four files. Three
-// of them are load-bearing in different ways: SERVER_VERSION is what MCP
-// clients see in the handshake, package.json is what the build and both
-// staging scripts read, and .mcp/server.json's `identifier` is a literal
-// download URL — a stale one is a 404 for every install. The README's two
-// install lines are what a human copies. Nothing checks the README against
-// anything, so it is the one most likely to rot.
+// The server version lives in SERVER_VERSION, package.json, and the top-level
+// version of .mcp/server.json. Those three move together. The mcpb package
+// entry (identifier, package version, fileSha256) stays pinned to the bundle
+// that was actually released — 1.2.0 keeps the 1.1.1 artifact — so this script
+// does not rewrite it. A new bundle is a separate release, written by
+// stage-mcpb.ts --update-manifest once the package entry is meant to move.
+// The README names that released bundle on purpose and is not rewritten here.
 //
 // Every replacement below is asserted. If a pattern stops matching — because
 // the README was reworded, or a file moved — this exits non-zero rather than
@@ -86,20 +86,15 @@ const edits = [
   },
   {
     file: path.join(repoRoot, ".mcp", "server.json"),
-    label: 'registry manifest version + the mcpb "identifier" download URL',
-    // Matches the top-level version, the package entry's version, and both
-    // version segments of the identifier URL (the vX.Y.Z tag directory and the
-    // X.Y.Z inside the asset filename).
-    find: new RegExp(escapeRe(current), "g"),
-    replace: next,
-    expect: 4,
-  },
-  {
-    file: path.join(repoRoot, "README.md"),
-    label: "README install instructions (.mcpb filename and .tgz URL)",
-    find: new RegExp(escapeRe(current), "g"),
-    replace: next,
-    expect: 3,
+    label:
+      "registry manifest top-level version (the mcpb package entry stays pinned)",
+    // Only the top-level "version" field. A global replace would also rewrite
+    // the pinned package identifier the next time the two versions coincide.
+    find: new RegExp(
+      `("version":\\s*")${escapeRe(current)}("\\s*,\\s*\\n\\s*"websiteUrl")`,
+    ),
+    replace: `$1${next}$2`,
+    expect: 1,
   },
 ];
 
@@ -155,8 +150,8 @@ console.log(
   `${dryRun ? "[dry run] " : ""}${current} -> ${next} across ${edits.length} files.`,
 );
 console.log(
-  "\n.mcp/server.json's fileSha256 is now stale by design — the artifact it\n" +
-    "describes has not been built yet. Next:\n" +
-    "  tsx ./build.ts && tsx ./stage-mcpb.ts --update-manifest\n" +
-    "The release workflow runs both for you.",
+  "\nThe mcpb package entry was left untouched. It keeps pointing at the bundle\n" +
+    "that was actually released. Do not run stage-mcpb.ts --update-manifest\n" +
+    "unless you are cutting that new bundle: the script refuses while the\n" +
+    "package entry version and the server version still differ.",
 );

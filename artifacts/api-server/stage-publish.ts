@@ -125,7 +125,7 @@ async function stage(): Promise<void> {
     // can never disagree.
     mcpName: mcpManifest.name,
     description:
-      "MCP server for ABOVO.co — publish any content to a permanent public web page by sending an email. No API key, no signup. Runs locally over stdio.",
+      "MCP server for ABOVO.co — prepares a ready-to-send email that becomes a public web page when you send it to POST@abovo.co. Sends nothing. Runs locally over stdio.",
     license: "MIT",
     author: "Sean P. Fenlon (Abovo42 Corporation)",
     homepage: "https://www.abovo.co",
@@ -141,7 +141,6 @@ async function stage(): Promise<void> {
       "model-context-protocol",
       "abovo",
       "email",
-      "smtp",
       "publishing",
       "stdio",
     ],

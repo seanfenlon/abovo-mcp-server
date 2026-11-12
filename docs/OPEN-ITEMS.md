@@ -4,46 +4,37 @@ Known, deliberately-deferred work. Each entry says what is wrong, how it was
 verified, what fixing it costs, and who has to press the button. Nothing here is
 a mystery — if an item is still listed, it is because someone chose to wait.
 
-Last audited **2026-08-01**.
+Last audited **2026-11-12**.
 
 ---
 
-## 1. The deployed Replit `/api/mcp` bundle is two commits behind on cosmetics
+## 1. Hosted tool annotations and copy
 
-**Status: deferred by SPF on 2026-08-01, to ride along on his next Replit publish.**
+**Status: closed 2026-11-12.**
 
-The hosted endpoint is `https://abovo.replit.app/api/mcp`, served from the
-ABOVO.co MCP Server Repl (`replId 25bb5529-6d72-4f6d-bde5-39c939074ee1`). Its
-deployed bundle predates commit `f014741`, so two accuracy defects are still
-live there. Both are already fixed on `main` and both already shipped in the
-v1.1.1 `.mcpb` — this is a deployment lag on one host, not an unfixed bug.
+The hosted server at `https://mcp.abovo.co/api/mcp` serves `prepare_abovo_post`
+and `get_abovo_info`. Both tools carry a title, `readOnlyHint: true`, and
+`destructiveHint: false`. `prepare_abovo_post` sends nothing: it returns To,
+Subject, Body, and a mailto link, and `format` defaults to plain text. A group
+name that is not a single DNS label is rejected before a mailto is built.
 
-| | Observed on the live endpoint |
-|---|---|
-| `annotations` on `publish_to_web` | **absent** |
-| `annotations` on `get_abovo_info` | **absent** |
-| `publish_to_web` description | still asserts *"Supports plain text, HTML, and file attachments."* |
+Attachments are files on the email the user sends to `POST@abovo.co`. Code can
+be inline in that email or attached as a `.txt` file. Groups are
+`{name}@abovo.co`; the creator's "I accept" click makes them the moderator.
+Every post's confirmation email includes a delete link.
 
-The description is the one that actually misleads a model: the MCP tool's input
-schema has no attachment field and cannot send one. Attachments work when a
-human emails ABOVO.co directly, not through this tool. A model reading that
-sentence will believe a capability it does not have. `.well-known/ai-plugin.json`
-already states the distinction correctly; the tool description does not.
+This pull request brings GitHub main in line with that server and removes the
+shared SMTP sender (`publish_to_web`). The already-released 1.1.1 `.mcpb` is
+unchanged and still referenced from `.mcp/server.json`.
 
-Neither defect is a security problem. The recipient-injection fix **is** live and
-enforced on this endpoint — see §3 for how to prove that without sending mail.
-
-**Cost to close:** one `update_app_using_prompt` to stage the change, then SPF
-publishes. Per `s42-replit-connector` §1, staging is automatable and **Publish
-never is** — there is no management API for it, permanently. Per §5.7, nothing
-is live until SPF publishes, and a Republish redeploys existing code without
-picking up pending workspace edits.
+Verified 2026-11-12 by calling `tools/list` and `tools/call` on the hosted
+endpoint. The prepare call returns the mailto and sends nothing.
 
 ---
 
 ## 2. Registry version 1.1.0 is still `active`, and it ships the unfixed code
 
-**Status: open. Needs a `workflow_dispatch` run, which needs SPF's browser.**
+**Status: open until Sean runs the registry status workflow after this pull request is merged.**
 
 `https://registry.modelcontextprotocol.io` currently serves two active records
 for `io.github.seanfenlon/abovo-mcp-server`:
@@ -71,22 +62,23 @@ sha256 7a6d672ea0214417e7a2faac2a09e12f0914e1e1f49a1f6f7a8f4692c0729cb9
 That is the recipient-injection vector this project was opened to close, still
 reachable by anyone who pins the older version.
 
-**Cost to close:** `publish-mcp.yml` already carries the machinery — the
-`Hide the stale 1.0.0 entry` step calls
+**Cost to close:** after this pull request is on `main`, run
+`.github/workflows/registry-status.yml` (the workflow named **Change a registry
+version's status**). It publishes nothing and refuses to deprecate whichever
+version the registry marks latest.
 
-```
-./mcp-publisher status --status <state> --message "<why>" <name> <version>
-```
+1. Open https://github.com/seanfenlon/abovo-mcp-server/actions/workflows/registry-status.yml
+2. Click **Run workflow**.
+3. Branch: **main**. Version to change: `1.1.0`. New status: **deprecated**. Leave the reason text as it is.
+4. Click the green **Run workflow**. Wait for the green check. Verify should print `1.1.0  status=deprecated` and `OK: 1.1.0 is now deprecated`.
 
-Today that call is hardcoded to `1.0.0` behind the `purge_stale_v1` input.
-Generalising it to accept a version, or adding a second step for `1.1.0`, is a
-few lines. **`deprecated` is the right state, not `deleted`** — deprecation
-keeps the audit trail and still warns clients, whereas deleting a version that
-people may already have installed erases the evidence of what happened.
+Publishing registry 1.2.0 is a later, separate decision. **Cut a release** stops
+at its version gate on purpose: the server version is 1.2.0 and the mcpb
+package entry is still the already-released 1.1.1 bundle.
 
-Editing anything under `.github/workflows/` requires a token with the `workflow`
-scope, which the tokens in use do not have; land it through GitHub's web editor
-as `99172a9` and `5545aa7` were landed.
+**`deprecated` is the right state, not `deleted`** — deprecation keeps the audit
+trail and still warns clients, whereas deleting a version that people may
+already have installed erases the evidence of what happened.
 
 ---
 
@@ -103,9 +95,9 @@ dumping the raw response.
 Read `result.isError` first. Treat the top-level `error` key as one of two
 places a rejection can appear, never the only one.
 
-The safe input to probe with is `group="@"`. It is forbidden by the advertised
-pattern *and* `@@abovo.co` is not a deliverable address, so even a total
-validation bypass could not send mail to anyone. Expected result:
+The tool never sends mail. The safe input to probe with is `group="@"`. It is
+forbidden by the advertised pattern, so the handler never builds a mailto.
+Expected result:
 
 ```
 result.isError = true
@@ -128,7 +120,7 @@ weaken by one character.
 `www.abovo.co` is not the Replit host and shares no code with this repository.
 It is an ASP.NET MVC 5.2 application on IIS 10 behind Azure App Service
 (`Server: Microsoft-IIS/10.0`, `X-AspNetMvc-Version: 5.2`, `ARRAffinity`
-cookies). The Replit developer host `abovo.replit.app` serves `/llms.txt`,
+cookies). The hosted developer site `https://mcp.abovo.co` serves `/llms.txt`,
 `/.well-known/ai-plugin.json` and `/.well-known/mcp.json` correctly with 200s;
 `www.abovo.co` does not serve them at all.
 

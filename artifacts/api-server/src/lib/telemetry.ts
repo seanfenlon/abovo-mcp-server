@@ -1,9 +1,10 @@
 // Lightweight, best-effort telemetry.
 //
-// Emits one JSON object per line (JSONL) for a small set of lifecycle and
-// publish events. By design this logger records ONLY coarse metadata:
+// Emits one JSON object per line (JSONL) for a small set of lifecycle events.
+// By design this logger records ONLY coarse metadata:
 //   - never message bodies or subjects
-//   - never SMTP credentials, env values, or email addresses
+//   - never env values or email addresses
+// The server does not send mail, so there is no credential to record.
 // Callers are responsible for passing only non-sensitive fields in `data`.
 //
 // Writes are fire-and-forget and never throw into the request path: a failure
@@ -12,12 +13,7 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 
-export type TelemetryEvent =
-  | "server_init"
-  | "tools_list"
-  | "publish_attempt"
-  | "publish_success"
-  | "publish_failure";
+export type TelemetryEvent = "server_init" | "tools_list" | "prepare_post";
 
 // Telemetry is on by default; set ABOVO_TELEMETRY_DISABLED=1 to silence it.
 const TELEMETRY_DISABLED = process.env.ABOVO_TELEMETRY_DISABLED === "1";

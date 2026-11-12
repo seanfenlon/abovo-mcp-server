@@ -423,7 +423,7 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
         <tr>
           <td><code>POST@abovo.co</code></td>
           <td>Publish to your personal page</td>
-          <td>URL returned to sender via reply email</td>
+          <td>Confirmation email includes the page URL and a delete link</td>
         </tr>
         <tr>
           <td><code>[groupname]@abovo.co</code></td>
@@ -466,6 +466,7 @@ const LANDING_PAGE_HTML = `<!DOCTYPE html>
 
   <section>
     <h2>Code Examples</h2>
+    <p>Send these from your own email account. ABOVO has no login: your email account is your login. Attach files to the email you send to <code>POST@abovo.co</code> and they appear on the post. Put code inline in the body, or attach it as a <code>.txt</code> file. Every post's confirmation email includes a delete link. To post to a group, send to <code>{name}@abovo.co</code>; the creator's "I accept" click makes them the moderator.</p>
     <div class="tabs">
       <div class="tab-buttons">
         <button class="tab-btn active" onclick="showTab(event,'python')">Python</button>
@@ -549,47 +550,48 @@ EOF
         <tr><td>Images</td><td>Email attachment (JPEG, PNG, GIF, WebP)</td><td>Displayed inline on page</td></tr>
         <tr><td>PDFs</td><td>Email attachment</td><td>Embedded PDF viewer</td></tr>
         <tr><td>Any file</td><td>Email attachment</td><td>Download link on page</td></tr>
+        <tr><td>Code</td><td>Inline in the email body, or attached as a .txt file</td><td>Shown on the page with the post</td></tr>
       </tbody>
     </table>
   </section>
 
   <section>
     <h2>MCP Server for AI Agents</h2>
-    <p>Connect AI applications to ABOVO.co's publishing capabilities via the Model Context Protocol (MCP). Claude Desktop, Cursor, VS Code, and any MCP-compatible client can use this server.</p>
+    <p>Connect AI applications to ABOVO.co via the Model Context Protocol (MCP). The server never sends email and never publishes on its own. It returns a ready-to-send email (To, Subject, Body, and a mailto link). The user sends that email from their own email account. No login: your email account is your login. Every post needs a verified email sender.</p>
 
     <div class="mcp-box">
-      <strong>Downloadable bundle (local stdio)</strong>
+      <strong>Hosted endpoint</strong>
       <div class="mcp-endpoint">
-        <span class="method">GET</span>
-        <span class="url">github.com/seanfenlon/abovo-mcp-server/releases/latest</span>
+        <span class="method">POST</span>
+        <span class="url">https://mcp.abovo.co/api/mcp</span>
       </div>
-      <p style="margin-top: 0.75rem; font-size: 0.88rem;">Download the <code>.mcpb</code> bundle and double-click it to install into Claude Desktop, or install the <code>.tgz</code> from the same release for any hand-configured MCP client. No account and no signup required.</p>
+      <p style="margin-top: 0.75rem; font-size: 0.88rem;">Streamable HTTP, stateless, no auth, no signup. Optional local <code>.mcpb</code> and <code>.tgz</code> bundles remain on the <a href="https://github.com/seanfenlon/abovo-mcp-server/releases/latest">latest GitHub release</a>. Prefer this hosted endpoint.</p>
     </div>
 
     <h3>Available Tools</h3>
 
     <div class="tool-card">
-      <div class="tool-name">publish_to_web</div>
-      <div class="tool-desc">Publish any content to a public web page on ABOVO.co.</div>
+      <div class="tool-name">prepare_abovo_post</div>
+      <div class="tool-desc">Builds a ready-to-send email and sends nothing. Attach files to the email you send to POST@abovo.co and they appear on the post. Code can be inline or a .txt file. The confirmation email includes a delete link.</div>
       <div class="param-row">
         <span class="param-name">subject</span>
         <span class="param-type">string, required</span>
-        <span class="param-desc">— Page title / subject line</span>
+        <span class="param-desc">— Page title; becomes the email subject</span>
       </div>
       <div class="param-row">
         <span class="param-name">body</span>
         <span class="param-type">string, required</span>
-        <span class="param-desc">— Content to publish (plain text or HTML)</span>
+        <span class="param-desc">— Page content (max 50,000 characters)</span>
       </div>
       <div class="param-row">
         <span class="param-name">format</span>
-        <span class="param-type">"text" | "html", default "html"</span>
-        <span class="param-desc">— Content format</span>
+        <span class="param-type">"text" | "html", default "text"</span>
+        <span class="param-desc">— Mailto links carry plain text only</span>
       </div>
       <div class="param-row">
         <span class="param-name">group</span>
         <span class="param-type">string, optional</span>
-        <span class="param-desc">— Post to a group instead of personal page</span>
+        <span class="param-desc">— Send to {name}@abovo.co. The creator's "I accept" click makes them moderator</span>
       </div>
     </div>
 
@@ -603,17 +605,10 @@ EOF
       </div>
     </div>
 
-    <h3>Claude Desktop Config</h3>
+    <h3>Client config</h3>
     <pre><code>{
   "mcpServers": {
-    "abovo": {
-      "command": "npx",
-      "args": ["-y", "@seanfenlon/abovo-mcp-server"],
-      "env": {
-        "ABOVO_SMTP_USER": "you@example.com",
-        "ABOVO_SMTP_PASS": "your-app-password"
-      }
-    }
+    "abovo": { "type": "http", "url": "https://mcp.abovo.co/api/mcp" }
   }
 }</code></pre>
   </section>
@@ -703,47 +698,42 @@ function showTab(e, id) {
 
 const LLMS_TXT = `# ABOVO.co
 
-> The simplest way to publish content to the web. Send an email, get a public URL.
+> Turn any email into a public web page: send it to POST@abovo.co. No login: your email is your login.
 
-ABOVO.co is an email-to-web publishing platform. Any email sent to POST@abovo.co is instantly converted into a public web page. The sender receives a URL back within seconds. No signup, no API key, no authentication required.
+ABOVO.co is an email-to-web publishing platform. Any email sent to POST@abovo.co from a verified sender becomes a public web page, and the sender gets a confirmation email with the page URL and a delete link. There is no account, password, API key, or OAuth: your email account is your login.
 
 US Patent No. 10,404,634.
 
-## API
+## How to publish
 
-ABOVO.co's API is email (SMTP). There is no REST API.
+- Publish: send any email to POST@abovo.co
+- Attachments: attach files to that email; they appear on the post
+- HTML email is rendered
+- Delete: use the delete link in the confirmation email
+- Groups: send to {groupname}@abovo.co. The first email to a new group sends the creator a confirmation; clicking "I accept" activates the group at https://{groupname}.abovo.co and makes the creator its moderator
+- Posts are public
+- Cost: free
 
-- Publish: Send any email to POST@abovo.co → receive a public URL back
-- Groups: Send to [groupname]@abovo.co → post to or create a topic group
-  - New group creation requires confirmation: ABOVO emails the first sender a link; they must click "I accept" to activate the group and become moderator
-  - Group page lives at a subdomain: https://{groupname}.abovo.co (e.g. https://jazz.abovo.co)
-- Attachments: Any file attached is published on the web page
-- HTML: Full HTML rendering supported
-- Cost: Free
-- Auth: None required
+## MCP server
 
-## URL Patterns
+- Endpoint: https://mcp.abovo.co/api/mcp (Streamable HTTP, stateless, no auth, no login)
+- Registry name: io.github.seanfenlon/abovo-mcp-server
+- Tools: prepare_abovo_post (returns a ready-to-send email: to, subject, body, mailto; sends nothing), get_abovo_info (reference text)
+- The user sends the prepared email from their own email account to POST@abovo.co or {group}@abovo.co. To include files, attach them to that email.
+- Optional local bundle: https://github.com/seanfenlon/abovo-mcp-server/releases/latest
+
+## URL patterns
 
 - User page: https://www.abovo.co/{sender-email}
 - Post: https://www.abovo.co/{sender-email}/{post-id}
 - Groups: https://www.abovo.co/Groups
 
-## MCP Server
-
-A Model Context Protocol (MCP) server is available for AI agents. It runs locally over stdio and is distributed as a downloadable bundle attached to a GitHub release — no package-registry account and no signup are involved.
-
-- Registry name: io.github.seanfenlon/abovo-mcp-server
-- Downloads: https://github.com/seanfenlon/abovo-mcp-server/releases/latest
-- Claude Desktop: download the .mcpb bundle from that release and open it
-- Any other client: npm install -g <the .tgz asset URL from that same release>
-- Transport: stdio (local; no hosted or remote endpoint)
-- Tools: publish_to_web, get_abovo_info
-- Requires SMTP env vars: ABOVO_SMTP_USER, ABOVO_SMTP_PASS (optional: ABOVO_SMTP_HOST, ABOVO_SMTP_PORT, ABOVO_SENDER_EMAIL)
-
 ## Links
 
 - Website: https://www.abovo.co
 - Help: https://www.abovo.co/home/help
+- Privacy: https://www.abovo.co/Home/Privacy
+- Terms: https://www.abovo.co/Home/Terms
 `;
 
 const AI_PLUGIN_JSON = {
@@ -753,7 +743,7 @@ const AI_PLUGIN_JSON = {
   description_for_human:
     "Publish any content to a public web page by sending an email. No signup required. Free.",
   description_for_model:
-    "ABOVO.co publishes content to the web via email. Send any content to POST@abovo.co and receive a permanent public URL within seconds. No authentication, no API key, no signup required. SMTP is the API. Supports text, HTML, images, file attachments. URL patterns: abovo.co/{email} for user pages, abovo.co/{email}/{id} for posts. Groups via [name]@abovo.co — group pages live at {groupname}.abovo.co (subdomain, e.g. jazz.abovo.co); new group creation requires the first poster to confirm via email before the group goes live. US Patent No. 10,404,634. An MCP server is available for AI agents under the registry name io.github.seanfenlon/abovo-mcp-server; it runs locally over stdio and is downloaded as a bundle from https://github.com/seanfenlon/abovo-mcp-server/releases/latest, with no package-registry account or signup required.",
+    "ABOVO.co publishes content to the web via email. Send any content to POST@abovo.co and receive a permanent public URL within seconds. No authentication, no API key, no signup required. SMTP is the API. Supports text, HTML, images, file attachments. To include files, attach them to the email you send to POST@abovo.co; they appear on the post. Code can be inline in the email body, or attached as a .txt file. The MCP tool prepares that email and sends nothing itself. URL patterns: abovo.co/{email} for user pages, abovo.co/{email}/{id} for posts. Groups via {name}@abovo.co — the creator's accept-click makes them moderator, and the group page lives at {groupname}.abovo.co (subdomain, e.g. jazz.abovo.co). Every post's confirmation email includes a delete link. US Patent No. 10,404,634. An MCP server is available for AI agents under the registry name io.github.seanfenlon/abovo-mcp-server; it is hosted at https://mcp.abovo.co/api/mcp (Streamable HTTP, stateless, no auth, no login), with no package-registry account or signup required.",
   auth: { type: "none" },
   api: {
     type: "smtp",
@@ -761,7 +751,8 @@ const AI_PLUGIN_JSON = {
     note: "ABOVO.co uses SMTP (email) as its API. Send an email to POST@abovo.co via any SMTP client.",
   },
   mcp: {
-    transport: "stdio",
+    transport: "streamable-http",
+    url: "https://mcp.abovo.co/api/mcp",
     registryName: "io.github.seanfenlon/abovo-mcp-server",
     downloads:
       "https://github.com/seanfenlon/abovo-mcp-server/releases/latest",
