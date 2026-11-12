@@ -12,10 +12,8 @@
 // no framing headers, exactly as an MCP host would. It has no dependencies and
 // runs on a bare Node 18+ runtime, so it works unchanged on a CI runner.
 //
-// Deliberately runs with NO SMTP credentials. That is the safe posture for CI
-// (nothing can be sent) and it is also the interesting one: the unconfigured
-// path is a documented, reachable branch, and it regressed once already by
-// reporting isError:false while telemetry logged a failure.
+// The server sends nothing. prepare_abovo_post returns a ready-to-send email
+// and never opens a mail transport, so this script cannot publish a post.
 //
 // Usage:  node ./smoke-stdio.mjs [path/to/stdio.cjs]
 // Exit 0 = every assertion passed. Exit 1 = do not release.
@@ -50,10 +48,8 @@ function check(name, condition, detail = "") {
 
 class StdioClient {
   constructor(entryPath) {
-    // Strip every ABOVO_* variable out of the child's environment. Without this
-    // the test's meaning depends on whoever happens to be running it: a
-    // developer with real credentials exported would exercise a completely
-    // different branch than CI does, and could send live mail from a smoke test.
+    // Strip every ABOVO_* variable out of the child's environment so a developer's
+    // local settings cannot change what this test exercises.
     const env = Object.fromEntries(
       Object.entries(process.env).filter(([k]) => !k.startsWith("ABOVO_")),
     );
@@ -153,91 +149,133 @@ try {
   const tools = list.result?.tools ?? [];
   const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
 
-  check("tools/list returns publish_to_web", Boolean(byName.publish_to_web));
+  check("tools/list returns prepare_abovo_post", Boolean(byName.prepare_abovo_post));
   check("tools/list returns get_abovo_info", Boolean(byName.get_abovo_info));
+  check("tools/list does not return publish_to_web", !byName.publish_to_web);
 
   // Annotations are how a host decides whether a tool is safe to call without
-  // asking. get_abovo_info shipped 1.1.0 with annotations:null, which makes a
-  // pure read look exactly like a tool that sends mail.
-  for (const name of ["publish_to_web", "get_abovo_info"]) {
+  // asking. Both tools are read-only: prepare_abovo_post sends nothing.
+  for (const name of ["prepare_abovo_post", "get_abovo_info"]) {
     const ann = byName[name]?.annotations;
     check(
       `${name} declares annotations`,
       ann && typeof ann === "object",
       `annotations is ${JSON.stringify(ann)}`,
     );
+    check(
+      `${name} title is set`,
+      typeof ann?.title === "string" && ann.title.length > 0,
+      `title is ${JSON.stringify(ann?.title)}`,
+    );
+    check(
+      `${name} is annotated read-only`,
+      ann?.readOnlyHint === true,
+      `readOnlyHint is ${JSON.stringify(ann?.readOnlyHint)}`,
+    );
+    check(
+      `${name} is annotated not destructive`,
+      ann?.destructiveHint === false,
+      `destructiveHint is ${JSON.stringify(ann?.destructiveHint)}`,
+    );
   }
   check(
-    "get_abovo_info is annotated read-only",
-    byName.get_abovo_info?.annotations?.readOnlyHint === true,
+    "prepare_abovo_post title is Prepare ABOVO post email",
+    byName.prepare_abovo_post?.annotations?.title === "Prepare ABOVO post email",
   );
   check(
-    "publish_to_web is annotated as NOT read-only",
-    byName.publish_to_web?.annotations?.readOnlyHint !== true,
+    "get_abovo_info title is Get ABOVO info",
+    byName.get_abovo_info?.annotations?.title === "Get ABOVO info",
+  );
+
+  const prepareSchema = byName.prepare_abovo_post?.inputSchema ?? {};
+  const props = prepareSchema.properties ?? {};
+  check(
+    "prepare format defaults to text",
+    props.format?.default === "text",
+    `default is ${JSON.stringify(props.format?.default)}`,
+  );
+  check(
+    "prepare body maxLength is 50000",
+    props.body?.maxLength === 50000,
+    `maxLength is ${JSON.stringify(props.body?.maxLength)}`,
+  );
+  check(
+    "group pattern is a single DNS label",
+    props.group?.pattern ===
+      "^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$",
+    `pattern is ${JSON.stringify(props.group?.pattern)}`,
+  );
+  check(
+    "prepare_abovo_post has no attachment parameter",
+    !Object.keys(props).some((k) => /attach/i.test(k)),
+    `properties: ${Object.keys(props).join(", ")}`,
   );
 
   // --- the group parameter must not accept an address list ---------------
   //
-  // `group` is interpolated straight into an email address, and nodemailer
-  // parses that string as an address LIST. An unconstrained value is therefore
-  // recipient injection: the caller picks a second, arbitrary recipient and the
-  // mail leaves through the operator's own authenticated mailbox. Proven
-  // against nodemailer's jsonTransport before the fix — these two payloads each
-  // produced two envelope recipients. They must now be rejected by the schema,
-  // before any transport is touched.
+  // `group` is placed in the address the user is told to send to. A value that
+  // is not a single DNS label could aim that mailto somewhere other than an
+  // ABOVO group. Validation must fire before the handler builds a mailto.
   const injectionPayloads = [
     "attacker@example.invalid, jazz",
     "x <attacker@example.invalid>, jazz",
     "jazz@abovo.co",
     "-leading-hyphen",
     "has space",
+    "@",
   ];
-  //
-  // The SDK surfaces a schema violation as a result with isError:true whose
-  // text carries the JSON-RPC code, not as a transport-level error object — so
-  // "was it rejected" is not enough on its own. The load-bearing assertion is
-  // WHERE it was rejected: validation must fire before the handler runs, which
-  // means the reply must never be the handler's own "SMTP credentials not
-  // configured" message. That message would prove the bad value passed the
-  // schema and reached the send path, where only a missing credential stopped
-  // it — i.e. the vulnerability, still present, masked by an empty CI
-  // environment.
   for (const group of injectionPayloads) {
     const res = await client.request("tools/call", {
-      name: "publish_to_web",
+      name: "prepare_abovo_post",
       arguments: { subject: "smoke", body: "smoke", group },
     });
     const text = res.result?.content?.[0]?.text ?? "";
     const message = res.error?.message ?? text;
     const rejected = Boolean(res.error) || res.result?.isError === true;
     const bySchema = /-32602|[Ii]nput validation error/.test(message);
-    const reachedHandler = /SMTP|credentials/i.test(message);
+    const reachedHandler = /Nothing has been sent|Mailto link/.test(text);
     check(
-      `group rejected before the send path: ${JSON.stringify(group)}`,
+      `group rejected before a mailto is built: ${JSON.stringify(group)}`,
       rejected && bySchema && !reachedHandler,
       reachedHandler
-        ? "value passed schema validation and reached the mail handler — only the absent credential stopped it"
-        : `expected a validation rejection, got ${JSON.stringify(res).slice(0, 180)}`,
+        ? "value passed schema validation and the handler built a mailto"
+        : `expected a validation rejection, got ${JSON.stringify(res).slice(0, 240)}`,
     );
   }
 
-  // A legitimate DNS label must still pass validation. With no credentials
-  // configured it cannot actually send, and it must say so as an ERROR — the
-  // unconfigured path reported isError:false in 1.1.0, which a client that
-  // branches on isError reads as a successful publish.
-  const ok = await client.request("tools/call", {
-    name: "publish_to_web",
-    arguments: { subject: "smoke", body: "smoke", group: "team-updates" },
+  // A legitimate DNS label is prepared, not sent. The reply says nothing was
+  // sent and names the group address. Omitting format must default to text.
+  const prepared = await client.request("tools/call", {
+    name: "prepare_abovo_post",
+    arguments: { subject: "smoke", body: "smoke body", group: "team-updates" },
   });
+  const preparedText = prepared.result?.content?.[0]?.text ?? "";
   check(
     "a valid DNS-label group passes schema validation",
-    !ok.error,
-    `schema rejected a legitimate group: ${JSON.stringify(ok.error ?? {})}`,
+    !prepared.error && prepared.result?.isError !== true,
+    `schema rejected a legitimate group: ${JSON.stringify(prepared.error ?? prepared.result ?? {}).slice(0, 240)}`,
   );
   check(
-    "unconfigured SMTP is reported as isError",
-    ok.result?.isError === true,
-    `isError was ${ok.result?.isError}; a client branching on it would read this as a successful publish`,
+    "prepare returns To the group address and says nothing was sent",
+    preparedText.includes("To: team-updates@abovo.co") &&
+      preparedText.includes("Nothing has been sent") &&
+      preparedText.includes("Format: text") &&
+      preparedText.includes("mailto:team-updates@abovo.co?"),
+    preparedText.slice(0, 240),
+  );
+
+  const personal = await client.request("tools/call", {
+    name: "prepare_abovo_post",
+    arguments: { subject: "Hello", body: "World" },
+  });
+  const personalText = personal.result?.content?.[0]?.text ?? "";
+  check(
+    "prepare without a group addresses POST@abovo.co and sends nothing",
+    personal.result?.isError !== true &&
+      personalText.includes("To: POST@abovo.co") &&
+      personalText.includes("Nothing has been sent") &&
+      personalText.includes("mailto:POST@abovo.co?subject=Hello&body=World"),
+    personalText.slice(0, 240),
   );
 
   // --- resources ---------------------------------------------------------
@@ -255,21 +293,31 @@ try {
   const text = doc.result?.contents?.[0]?.text ?? "";
   check("abovo://documentation is readable", text.length > 500, `${text.length} chars`);
 
-  // The tool has no attachment parameter. Documentation that says otherwise is
-  // how an agent ends up promising a user something it cannot do.
-  const publishSchema = JSON.stringify(
-    byName.publish_to_web?.inputSchema ?? {},
+  // Attachments are a property of the email the user sends, not of this tool.
+  // The docs must say that, and must not claim ABOVO cannot accept them.
+  check(
+    "documentation tells the user to attach files to the email",
+    /attaching files \(images, PDFs, etc\.\) to the email you send/i.test(text),
+    "the documentation resource no longer explains email attachments",
   );
   check(
-    "publish_to_web genuinely has no attachment parameter",
-    !/attach/i.test(publishSchema),
-    "the input schema mentions an attachment, so the docs may now be right and this check wrong",
+    "documentation explains code inline or as a .txt file",
+    /inline in the email body, or attached as a \.txt file/i.test(text),
   );
   check(
-    "documentation does not claim the tool can attach files",
-    !/^\s*-\s*Any file attachment\s*$/m.test(text) ||
-      /publish_to_web tool: plain text and HTML only/.test(text),
-    "the documentation resource advertises attachments without the tool-level caveat",
+    "documentation does not say ABOVO cannot do attachments",
+    !/cannot attach|can't do attachments|no attachment parameter|publish_to_web cannot/i.test(
+      text,
+    ),
+    "the documentation resource still describes attachments as unavailable",
+  );
+  check(
+    "documentation explains the delete link and the group accept-click",
+    /delete link/i.test(text) && /I accept/.test(text) && /moderator/.test(text),
+  );
+  check(
+    "documentation names the hosted endpoint",
+    text.includes("https://mcp.abovo.co/api/mcp"),
   );
 
   // --- stdout hygiene ----------------------------------------------------

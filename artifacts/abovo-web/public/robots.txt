@@ -1,4 +1,5 @@
-# abovo.replit.app — ABOVO.co developer host
+# mcp.abovo.co — ABOVO.co developer host
+# MCP endpoint: https://mcp.abovo.co/api/mcp
 #
 # Machine-readable descriptions of this service, for AI agents and crawlers:
 #   /llms.txt

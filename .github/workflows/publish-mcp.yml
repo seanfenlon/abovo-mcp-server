@@ -74,23 +74,33 @@ jobs:
         run: |
           set -euo pipefail
           VERSION=$(jq -r .version .mcp/server.json)
-          PKGVER=$(jq -r '.packages[0].version' .mcp/server.json)
-          IDENT=$(jq -r '.packages[0].identifier' .mcp/server.json)
+          REMOTE=$(jq -r '.remotes[0].url // ""' .mcp/server.json)
+          echo "version: $VERSION"
+          echo "remote:  ${REMOTE:-<none>}"
 
-          echo "version:    $VERSION"
-          echo "identifier: $IDENT"
+          # The top-level server version and a package's version are separate
+          # registry concepts. 1.2.0 adds a hosted remote while keeping the
+          # already-released, already-hashed v1.1.1 .mcpb unchanged, so they are
+          # no longer required to match. What still must hold: each package
+          # identifier points at its own package version's release asset.
+          jq -c '.packages[]? | {v: .version, id: .identifier}' .mcp/server.json | while read -r p; do
+            PV=$(echo "$p" | jq -r .v); ID=$(echo "$p" | jq -r .id)
+            case "$ID" in
+              *"/v$PV/"*"$PV.mcpb") echo "package $PV -> $ID" ;;
+              *) echo "::error::package identifier does not point at v$PV: $ID"; exit 1 ;;
+            esac
+          done
 
-          # A manifest whose package entry, top-level version, and download URL
-          # disagree describes an artifact that does not exist. Catch it here
-          # rather than publishing a listing that 404s for everyone who installs.
-          test "$VERSION" = "$PKGVER" || {
-            echo "::error::server version $VERSION != package entry version $PKGVER"; exit 1; }
-          case "$IDENT" in
-            *"/v$VERSION/"*"$VERSION.mcpb") ;;
-            *) echo "::error::identifier does not point at v$VERSION: $IDENT"; exit 1 ;;
-          esac
+          # A remote must answer an MCP initialize before we advertise it.
+          if [ -n "$REMOTE" ]; then
+            curl -fsS -m 20 -X POST "$REMOTE" \
+              -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+              -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"publish-mcp-ci","version":"0"}}}' \
+              | grep -q '"serverInfo"' || { echo "::error::remote $REMOTE did not answer initialize"; exit 1; }
+          fi
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "remote=$REMOTE" >> "$GITHUB_OUTPUT"
 
       - name: Verify the release asset still matches fileSha256
         run: |
@@ -128,6 +138,7 @@ jobs:
       - name: Verify what the registry actually serves now
         env:
           WANT: ${{ steps.manifest.outputs.version }}
+          REMOTE: ${{ steps.manifest.outputs.remote }}
         run: |
           set -euo pipefail
           curl -fsS 'https://registry.modelcontextprotocol.io/v0/servers?search=io.github.seanfenlon/abovo-mcp-server' -o live.json
@@ -148,10 +159,13 @@ jobs:
              live.json > latest.json
 
           jq -e --arg want "$WANT" '.server.version == $want' latest.json > /dev/null
-          jq -e '.server | has("remotes") | not' latest.json > /dev/null
-          jq -e '.server.packages[0].registryType == "mcpb"' latest.json > /dev/null
+          if [ -n "$REMOTE" ]; then
+            jq -e --arg r "$REMOTE" '.server.remotes[0].url == $r' latest.json > /dev/null
+          else
+            jq -e '.server | has("remotes") | not' latest.json > /dev/null
+          fi
           jq -e '._meta["io.modelcontextprotocol.registry/official"].status == "active"' latest.json > /dev/null
-          echo "OK: the registry's latest record is $WANT — active, no remotes block, mcpb package."
+          echo "OK: the registry's latest record is $WANT — active, remote: ${REMOTE:-none}."
 
       - name: Always log out
         if: always()

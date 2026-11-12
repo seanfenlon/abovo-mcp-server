@@ -1,14 +1,20 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.seanfenlon/abovo-mcp-server",
-  "title": "ABOVO.co — Email-to-Web Publishing",
-  "description": "Publish content to the web by emailing POST@abovo.co. No API key, no signup. SMTP is the API.",
-  "version": "1.1.1",
+  "title": "ABOVO.co: Email-to-Web Publishing",
+  "description": "Turn any email into a public web page: send it to POST@abovo.co. No login: your email is your login.",
+  "version": "1.2.0",
   "websiteUrl": "https://www.abovo.co",
   "repository": {
     "url": "https://github.com/seanfenlon/abovo-mcp-server",
     "source": "github"
   },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.abovo.co/api/mcp"
+    }
+  ],
   "packages": [
     {
       "registryType": "mcpb",
